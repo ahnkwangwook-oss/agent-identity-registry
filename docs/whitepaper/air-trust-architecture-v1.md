@@ -201,3 +201,63 @@ Score = round( 0.25·400 + 0.25·500 + 0.20·550 + 0.15·400 + 0.15·300 )
 ```
 
 This yields a trust score of **440**, grade **B**, and — because a self-declared signal (open-source) lifted transparency above baseline while no attestation exists — the evidence label **Self-declared**.
+
+---
+
+## 4. Cryptographic Verification — the Moat
+
+The trust score summarizes many weak signals. **AIR Verified** does one thing rigorously: it certifies that independent parties have cryptographically vouched for an agent *across organizational boundaries*. This is the architecture's moat, because it is the one signal a single vendor structurally cannot produce. Every value in this section is verified directly against `api/src/index.js` and `api/src/trust.mjs`.
+
+### 4.1 The attestation model
+
+An **attestation** is a signed vouch by one registered agent for another. Attestations are **signed client-side — the registry never sees a private key.** To issue one, an attester:
+
+1. builds the payload `{ attester_air_id, attestation_type, signed_at, statement, subject_air_id }`;
+2. canonicalizes it (JCS / RFC 8785) and signs the canonical bytes with its **Ed25519** key;
+3. multibase-encodes the signature; and
+4. submits it to `POST /agents/{subject_air_id}/attestations`, authenticated by the *attester's* own secret.
+
+Because the signed payload and signature are stored and published, anyone can later re-verify the signature against the attester's independently-resolved public key. The vouch is a portable cryptographic object, not a database row you have to trust AIR about.
+
+### 4.2 AIR Verified
+
+An agent earns the **AIR Verified** status when its live attestation aggregate satisfies **both** conditions:
+
+```
+verification_score ≥ 300   AND   distinct_whois_roots ≥ 3
+```
+
+where `verification_score` is the sum, over active attestations from active attesters, of each vouch's frozen weight (`attester_trust_at_issue × tenure_multiplier_at_issue`), and `distinct_whois_roots` counts the separate registrable domains behind those attesters. Both thresholds apply the **dead-vouch filter**: a vouch from a deleted or deactivated attester counts toward neither.
+
+### 4.3 The six locks
+
+Whether an attestation counts toward Verified is gated by six enforced checks:
+
+1. **Live key binding.** The attester's DID must be a `did:wba` that resolves live at issue time. For an *external* `did:wba`, the freshly-resolved DID document must advertise the exact Ed25519 public key AIR holds on file — a byte-equal `publicKeyMultibase` in the document's `verificationMethod[]` — and the signature must verify against it. The check is **fail-closed**: a missing, malformed, redirected, non-JSON, or key-absent document voids the vouch. (AIR-minted DIDs are self-consistent by construction and skip re-resolution.)
+2. **Distinct WHOIS root.** The attester's registrable domain (eTLD+1) must differ from the subject's *and* from every other active attester's; a duplicate root is rejected. This is the Sybil moat.
+3. **Attester eligibility.** The attester must have a tenure of **≥ 30 days** and its own trust score of **≥ 50** — established identities, not fresh throwaway accounts.
+4. **Frozen weighting.** The vouch contributes `attester_trust_at_issue × tenure_multiplier_at_issue`, where the tenure multiplier is a step function: **0** below 30 days, **0.5** at 30–90 days, **1.0** at 90–365 days, **1.5** beyond 365 days. Freezing the weight at issue time breaks the recursive "trust pump" — later raising an attester's score cannot retroactively inflate everyone it has already vouched for.
+5. **Rate limit.** At most **10** active attestations per attester per rolling **7-day** window.
+6. **Public audit trail.** Every attestation — active and revoked — is stored with its full signed payload and signature, so any third party can re-verify it without registry access.
+
+A seventh mechanism — economic slashing — is designed but deliberately deferred until the governance rules that would trigger it are settled. It is documented here as future work, not claimed as shipped.
+
+### 4.4 Hardened resolution and key encoding
+
+External `did:wba` resolution is hardened against substitution attacks: it **rejects redirects**, requires a JSON content type (guarding against HTML/SPA fallback pages), and reads only up to a fixed byte cap. Ed25519 keys are encoded as `publicKeyMultibase` — multicodec prefix `0xed01`, base58btc, `z` multibase prefix — the same encoding `did:key` uses, so any standard resolver can consume them. Non-canonical DIDs on the AIR domain are hard-rejected before any lookup, so no future catch-all route can become a key-substitution vector.
+
+### 4.5 Why a single vendor cannot offer neutral Verified
+
+The requirement for **three distinct WHOIS roots** is not merely Sybil resistance — it is the neutrality guarantee, expressed as a mechanism. A single vendor issuing "verified" badges is, by construction, *one* root vouching for agents inside its own ecosystem; it can satisfy at most one of the three required roots. Crucially, the same limit binds AIR itself: because all AIR-minted identities share the single `agentidentityregistry.org` root, they too count as only one root. It follows that **even AIR cannot manufacture a Verified agent** — Verified is reachable only through the genuine, independent participation of at least three separately-rooted parties. Neutrality here is a property of the algorithm, not a clause in a policy document.
+
+---
+
+## 5. The Trust Graph
+
+Trust is relational. The useful questions are not only "how trustworthy is this agent?" but "who vouches for it, who depends on it, and what does the surrounding structure reveal?" A per-agent score compresses that structure into a single number; the trust graph exposes the structure itself, through three public endpoints:
+
+- **Ego graph** — `GET /agents/{air_id}/graph` returns the agent's direct (1-hop) trust edges: `inbound` (who vouches for this agent) and `outbound` (who it vouches for). Active edges only.
+- **Dependents / blast radius** — `GET /agents/{air_id}/dependents` returns the transitive set of agents that depend on this one, directly or through a chain, by following dependency edges in reverse. It answers *"if this agent is compromised, who is affected?"* — bounded by a `depth` parameter (default 6, maximum 10) and a node `limit` (default 500, maximum 1000), with a `truncated` flag when the cap clips the result.
+- **Registry-wide statistics** — `GET /graph/stats` returns node and edge counts, edges broken down by attestation type, and the most-attested agents and most-active attesters.
+
+Topology matters because it surfaces attacks that a flat score hides. A cluster of agents that vouch only for one another — a **self-attestation ring** — can each display a respectable peer sub-score, yet the ring appears as a dense, inward-facing subgraph with few edges to the rest of the network. Making that structure publicly inspectable is what raises the cost of gaming: it is no longer enough to inflate a number, because the *shape* of the trust around an agent must also look legitimate. This complements the WHOIS-root diversity rule of §4, which forces genuine Verified edges to cross organizational boundaries — precisely the signature of a healthy topology.
