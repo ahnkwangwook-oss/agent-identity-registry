@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="The AIR Trust Architecture whitepaper — a neutral trust and verification architecture for AI agents: the trust score, cryptographic AIR Verified, the trust graph, and a tamper-evident, externally-anchored audit log.">
+
+    <!-- Open Graph + Twitter Card -->
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Agent Identity Registry">
+    <meta property="og:title" content="AIR Trust Architecture Whitepaper">
+    <meta property="og:description" content="A neutral trust and verification architecture for AI agents: transparent scoring, cross-organization cryptographic verification, a trust graph, and a tamper-evident audit log. Honest about its limits.">
+    <meta property="og:url" content="https://agentidentityregistry.org/whitepaper/">
+    <meta property="og:image" content="https://agentidentityregistry.org/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="AIR — The global identity standard for AI agents">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="AIR Trust Architecture Whitepaper">
+    <meta name="twitter:description" content="A neutral trust and verification architecture for AI agents: transparent scoring, cross-org cryptographic verification, a trust graph, and a tamper-evident audit log.">
+    <meta name="twitter:image" content="https://agentidentityregistry.org/assets/og-image.png">
+    <link rel="canonical" href="https://agentidentityregistry.org/whitepaper/">
+
+    <title>AIR Trust Architecture Whitepaper | AIR</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Work+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary:#1E3A8A;--primary-dark:#172554;--primary-light:#2563EB;
+            --accent-gold:#F59E0B;--text:#0F172A;--text-secondary:#475569;--text-muted:#64748B;
+            --bg:#FFFFFF;--bg-warm:#F8FAFC;--bg-tint:#F0F4FF;--border:#CBD5E1;--border-light:#E2E8F0;
+            --success:#059669;--card:#FFFFFF;--radius:0.5rem;
+        }
+        *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+        html{scroll-behavior:smooth;font-size:16px;}
+        body{font-family:'Work Sans',system-ui,sans-serif;line-height:1.6;color:var(--text);background:var(--bg-warm);-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;flex-direction:column;}
+        h1,h2,h3,h4{font-family:'Outfit',sans-serif;font-weight:700;line-height:1.15;}
+        .nav{position:sticky;top:0;z-index:50;background:rgba(255,255,255,0.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--border-light);}
+        .nav-inner{max-width:1200px;margin:0 auto;padding:1rem 2rem;display:flex;align-items:center;justify-content:space-between;}
+        .nav-brand{display:flex;align-items:center;gap:0.75rem;text-decoration:none;color:var(--primary);}
+        .nav-brand-mark{font-family:'Outfit';font-weight:800;font-size:1.6rem;letter-spacing:-1px;}
+        .nav-brand-label{font-size:0.65rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);}
+        .nav-links{display:flex;gap:2rem;align-items:center;}
+        .nav-links a{text-decoration:none;color:var(--text-secondary);font-size:0.9rem;font-weight:500;transition:color 0.2s;}
+        .nav-links a:hover{color:var(--primary);}
+        .nav-cta{background:var(--primary);color:#fff!important;padding:0.55rem 1.25rem;border-radius:var(--radius);font-weight:600;font-size:0.85rem;text-decoration:none;transition:background 0.2s;}
+        .nav-cta:hover{background:var(--primary-light);}
+        @media(max-width:768px){.nav-links{display:none;}}
+
+        .hero{background:linear-gradient(135deg,var(--primary-dark) 0%,var(--primary) 50%,var(--primary-light) 100%);color:#fff;padding:3.5rem 0 4rem;text-align:center;}
+        .hero h1{font-size:clamp(1.8rem,4vw,2.8rem);font-weight:800;letter-spacing:-1px;margin-bottom:0.5rem;}
+        .hero p{font-size:1.05rem;color:rgba(255,255,255,0.85);max-width:620px;margin:0 auto;}
+        .hero-tag{font-size:0.75rem;font-weight:600;letter-spacing:3px;text-transform:uppercase;color:var(--accent-gold);margin-bottom:0.75rem;}
+        .dl-btn{display:inline-flex;align-items:center;gap:0.5rem;background:var(--accent-gold);color:var(--primary-dark);font-weight:700;padding:0.75rem 1.5rem;border-radius:var(--radius);text-decoration:none;font-size:0.92rem;transition:transform 0.15s,box-shadow 0.15s;}
+        .dl-btn:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(0,0,0,0.2);}
+
+        .container{max-width:900px;margin:0 auto;padding:0 2rem;width:100%;}
+        main{flex:1;padding:3rem 0 4rem;}
+
+        /* Whitepaper content */
+        .paper{max-width:820px;margin:0 auto;}
+        .paper > h1:first-child{display:none;}
+        .paper h2{font-size:1.5rem;color:var(--primary-dark);margin:2.75rem 0 1rem;padding-bottom:0.5rem;border-bottom:2px solid var(--border-light);scroll-margin-top:80px;}
+        .paper h3{font-size:1.15rem;color:var(--primary);margin:1.85rem 0 0.6rem;scroll-margin-top:80px;}
+        .paper p{color:var(--text-secondary);margin-bottom:1rem;font-size:0.98rem;}
+        .paper ul,.paper ol{color:var(--text-secondary);margin:0 0 1.15rem 1.5rem;font-size:0.98rem;}
+        .paper li{margin-bottom:0.5rem;}
+        .paper strong{color:var(--text);font-weight:600;}
+        .paper a{color:var(--primary);}
+        .paper em{color:var(--text-secondary);}
+        .paper code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:0.85em;background:var(--bg-tint);padding:0.12rem 0.35rem;border-radius:4px;color:var(--primary-dark);}
+        .paper pre{background:var(--primary-dark);color:#E6EDF3;padding:1rem 1.25rem;border-radius:0.5rem;overflow-x:auto;margin:0 0 1.25rem;font-size:0.82rem;line-height:1.55;}
+        .paper pre code{background:none;padding:0;color:inherit;font-size:inherit;}
+        .paper blockquote{border-left:4px solid var(--primary-light);background:var(--bg-tint);margin:0 0 1.5rem;padding:1rem 1.25rem;color:var(--text-secondary);font-style:italic;border-radius:0 0.5rem 0.5rem 0;}
+        .paper blockquote p{margin:0;}
+        .paper table{width:100%;border-collapse:collapse;margin:0 0 1.5rem;font-size:0.88rem;display:block;overflow-x:auto;}
+        .paper col{width:auto!important;}
+        .paper th,.paper td{border:1px solid var(--border-light);padding:0.55rem 0.75rem;text-align:left;vertical-align:top;}
+        .paper th{background:var(--bg-tint);color:var(--primary-dark);font-weight:600;}
+        .paper td{color:var(--text-secondary);}
+        .paper hr{border:none;border-top:1px solid var(--border-light);margin:2.5rem 0;}
+
+        footer{background:var(--primary-dark);color:rgba(255,255,255,0.6);padding:2rem 0;text-align:center;font-size:0.8rem;}
+        footer a{color:rgba(255,255,255,0.8);text-decoration:none;}
+        footer a:hover{color:#fff;}
+        .footer-brand{font-family:'Outfit';font-weight:800;font-size:1.2rem;color:#fff;margin-bottom:0.25rem;}
+    </style>
+</head>
+<body>
+
+<header class="nav">
+    <div class="nav-inner">
+        <a href="/" class="nav-brand"><div><div class="nav-brand-mark">AIR</div><div class="nav-brand-label">Agent Identity Registry</div></div></a>
+        <nav class="nav-links">
+            <a href="/">Home</a>
+            <a href="/lookup">ID Lookup</a>
+            <a href="/about">About</a>
+            <a href="/developers">Developers</a>
+            <a href="/note">AIR Note</a>
+            <a href="/register" class="nav-cta">Register an Agent</a>
+        </nav>
+    </div>
+</header>
+
+<section class="hero">
+    <div class="container">
+        <div class="hero-tag">Whitepaper &middot; Version 1.0</div>
+        <h1>AIR Trust Architecture</h1>
+        <p>A neutral trust &amp; verification architecture for AI agents — the transparent score, cryptographic AIR Verified, the trust graph, and a tamper-evident audit log. Honest about what it does not yet do.</p>
+        <div style="margin-top:1.75rem;">
+            <a class="dl-btn" href="/whitepaper/air-trust-architecture-v1.pdf" download>&#8595;&nbsp; Download PDF</a>
+        </div>
+    </div>
+</section>
+
+<main>
+    <div class="container">
+        <article class="paper">
+<blockquote>
+<p>AIR is a neutral, nonprofit registry that gives AI agents a cryptographic identity, a transparent and auditable trust score, and cross-organization verification that no single vendor can credibly offer alone. This paper documents the full architecture — the score, the cryptographic Verified badge, the trust graph, the externally-anchored audit log, and the evidence labels — and states plainly what the system does <em>not</em> yet do.</p>
+</blockquote>
+<hr />
+<h2 id="abstract">Abstract</h2>
+<p>AI agents are becoming autonomous participants in commerce, infrastructure, and everyday software. When one agent transacts with, delegates to, or depends on another, a basic question has no good answer today: <strong>who is this agent, and should I trust it?</strong></p>
+<p>Existing approaches conflate two different problems. <em>Identity</em> — proving an agent is the same entity across interactions — is increasingly solved by cryptographic methods such as W3C Decentralized Identifiers. <em>Trust</em> — whether that identity has earned any standing — is not. Where trust signals exist at all, they are proprietary to a single platform, opaque in how they are computed, and issued by an organization that also competes in the ecosystem it is grading.</p>
+<p>The <strong>Agent Identity Registry (AIR)</strong> is neutral infrastructure for that second problem. It is operated by a nonprofit foundation, not a commercial platform, and it is built on four commitments: publish the math, describe evidence rather than render verdicts, let anyone re-verify every claim independently, and state honestly what the system cannot yet do.</p>
+<p>AIR combines five mechanisms into one architecture:</p>
+<ol type="1">
+<li><strong>A transparent trust score</strong> — a published, weighted composite of five components on a 0–1000 scale, with every weight and threshold documented and queryable.</li>
+<li><strong>Cryptographic verification (the moat)</strong> — an "AIR Verified" status that requires cryptographically-signed endorsements from independent attesters anchored to <strong>three or more distinct WHOIS roots</strong>, gated by six enforced checks.</li>
+<li><strong>A cross-organization trust graph</strong> — trust modeled as a relational topology (who vouches for whom, who depends on whom), which surfaces self-attestation rings that a flat score would hide.</li>
+<li><strong>A tamper-evident audit log</strong> — an append-only, hash-linked record of every change to an agent's record, whose chain tip is anchored weekly to a public external repository so that even the registry operator cannot silently rewrite history.</li>
+<li><strong>Factual evidence labels</strong> — a plain-language classification (Verified / Attested / Self-declared / Registered) that describes <em>what independent evidence exists</em>, never an endorsement.</li>
+</ol>
+<p>Two properties are genuinely novel. First, <strong>cross-organizational Verified</strong>: because AIR-minted identities all share a single WHOIS root, AIR itself cannot manufacture a Verified agent — the requirement for three independent roots is self-binding, which is precisely what a single-vendor badge can never be. Second, <strong>externally-anchored auditability</strong>: publishing the audit chain's tip to an outside, append-only repository makes the log tamper-evident <em>against the operator</em>, back to the last weekly anchor.</p>
+<p>We are equally clear about the present limits. The infrastructure is live in production, but the trust network is in its cold-start phase; the score is deliberately capped at grade <strong>BBB (645/1000)</strong> today because the behavioral component is a fixed placeholder until signed action-history telemetry ships; and several inputs remain partly self-declared. These are stated not as caveats buried in an appendix but as a design principle: a neutral registry earns credibility by admitting what it does not have.</p>
+<p>Everything below is verifiable. The scoring code, the API contract, the specification, and the audit anchors are all public. The correct response to this paper is not to trust it — it is to check it.</p>
+<hr />
+<h2 id="1-the-problem">1. The Problem</h2>
+<h3 id="11-agents-now-act-not-just-answer">1.1 Agents now act, not just answer</h3>
+<p>A growing share of software is agentic: systems that take actions on a user's behalf — calling APIs, moving data, initiating transactions, and delegating sub-tasks to other agents. As soon as one agent relies on another, it inherits that other agent's behavior and risk. The interaction is no longer a query and a response; it is a dependency.</p>
+<p>Dependencies require a basis for trust. Between humans and institutions, that basis is built from identity documents, reputations, credentials, and audit trails accumulated over time. For AI agents, almost none of that infrastructure exists in a neutral, portable form.</p>
+<h3 id="12-identity-is-not-trust">1.2 Identity is not trust</h3>
+<p>It is tempting to treat identity as sufficient. It is not. Knowing an agent's cryptographic identifier tells you that it is the <em>same</em> agent as before — it says nothing about whether that agent is competent, honest, well-secured, or endorsed by anyone. A stable identity is a prerequisite for trust, not a substitute for it.</p>
+<p>Concretely, two questions must be answered separately:</p>
+<ul>
+<li><strong>Identity:</strong> <em>Is this the entity it claims to be, consistently, across interactions?</em> Cryptographic identity — a content-addressed identifier bound to a public key and a W3C DID document — answers this well.</li>
+<li><strong>Trust:</strong> <em>Given that identity, what independent evidence exists that this agent should be relied upon?</em> This requires evidence that comes from <em>outside</em> the agent itself: endorsements from independent parties, transparent scoring, and an auditable history.</li>
+</ul>
+<p>AIR treats identity as the foundation and trust as the structure built on top of it. The two are related but never conflated: an agent can have an impeccable cryptographic identity and no trust standing at all.</p>
+<h3 id="13-why-the-trust-layer-must-be-neutral">1.3 Why the trust layer must be neutral</h3>
+<p>Where agent "trust" or "verification" signals exist today, they are almost always issued by a single commercial platform about agents on that platform. This creates three problems that no amount of engineering can fix from inside a single vendor:</p>
+<ul>
+<li><strong>Incentive conflict.</strong> A platform that both hosts agents and certifies them is grading its own ecosystem. Its "verified" badge is, structurally, a marketing asset — it cannot be a neutral fact, because the issuer has a commercial stake in the outcome.</li>
+<li><strong>Non-portability.</strong> A signal that lives inside one platform does not travel. An agent's standing resets to zero the moment it interacts across a platform boundary — exactly where trust matters most.</li>
+<li><strong>Opacity.</strong> Proprietary scores are rarely published in full. If you cannot see how a number is computed, you cannot audit it, contest it, or reproduce it.</li>
+</ul>
+<p>The trust layer for a cross-vendor agent web therefore has to be <strong>neutral, portable, and transparent</strong> — properties that are structural, not cosmetic. A neutral registry is not simply a nicer version of a vendor badge; it is a different category of thing, because it is the one party in the ecosystem with no agent of its own to promote.</p>
+<h3 id="14-the-gap-this-paper-addresses">1.4 The gap this paper addresses</h3>
+<p>The result is a missing layer. Agents have increasingly good identity and no shared, neutral, auditable notion of trust. Platforms build proprietary silos that do not interoperate; users and other agents have no neutral source of truth; and the "verified" signals that do exist cannot credibly claim neutrality. The rest of this paper describes the architecture AIR uses to fill that gap, and is candid about where the architecture is still incomplete.</p>
+<hr />
+<h2 id="2-design-principles">2. Design Principles</h2>
+<p>Four principles govern every design decision in AIR. They are not aspirational values; each maps to a concrete, checkable mechanism described later in this paper.</p>
+<h3 id="21-neutrality--facts-not-verdicts">2.1 Neutrality — facts, not verdicts</h3>
+<p>AIR describes evidence; it does not render judgments. Every agent carries a factual <strong>evidence label</strong> — <em>Verified</em>, <em>Attested</em>, <em>Self-declared</em>, or <em>Registered</em> — that states <em>what independent evidence exists</em>, never whether the agent is "good." The numeric score and its components are the transparent detail behind that label. AIR issues no endorsements, picks no winners, and grants no agent — including any operated by the foundation itself — a privileged standing.</p>
+<p>This neutrality is enforced structurally, not promised. Because AIR-minted identities all share the single <code>agentidentityregistry.org</code> WHOIS root, and because Verified status requires endorsements across <strong>three distinct roots</strong>, AIR cannot mint itself a Verified agent. The registry is bound by the same rules it publishes.</p>
+<h3 id="22-transparency--publish-the-math">2.2 Transparency — publish the math</h3>
+<p>Every scoring weight, grade threshold, verification requirement, and audit-hash recipe in this paper is documented in public source and queryable through a public API. There are no hidden multipliers and no undisclosed heuristics. A reader who disagrees with a number can point to the exact line of code that produces it. Transparency is what makes the score contestable, and contestability is what makes it trustworthy.</p>
+<h3 id="23-verifiability--dont-trust-us-verify">2.3 Verifiability — don't trust us, verify</h3>
+<p>Wherever possible, AIR is designed so that its claims can be reproduced by a third party with no access to the registry's internals:</p>
+<ul>
+<li>An agent's content-addressed identifier can be <strong>recomputed</strong> from its identity document.</li>
+<li>Each attestation signature can be <strong>re-checked</strong> against the attester's independently-resolved public key.</li>
+<li>Every entry in the audit log can be <strong>re-derived</strong> and its hash linkage confirmed, and the chain's tip cross-checked against a public external anchor.</li>
+</ul>
+<p>The design goal is that trust in AIR reduces to trust in mathematics and in public records — not in the good intentions of the operator.</p>
+<h3 id="24-honesty--admit-what-we-dont-have">2.4 Honesty — admit what we don't have</h3>
+<p>A neutral registry earns standing by being candid about its own limits. AIR publishes its actual status, not an aspirational one. The score is capped at grade BBB today because behavioral telemetry is not yet measured; the network is in cold-start; some inputs are self-declared; and the audit log is tamper-evident only back to the last weekly anchor, not in real time between anchors. These limitations are documented in §7 (Threat Model) and §8 (Current State &amp; Limitations) as first-class content, because a system that hides its weaknesses cannot credibly certify anyone else's strengths.</p>
+<hr />
+<h2 id="3-the-trust-score">3. The Trust Score</h2>
+<p>The trust score is a single integer on a 0–1000 scale, but its value comes from being fully decomposed and published rather than from the number itself. It is a weighted sum of five components, each independently scored on the same 0–1000 scale. This section documents exactly what the deployed engine (<code>api/src/trust.mjs</code>) computes today — not an aspirational rubric.</p>
+<h3 id="31-the-five-components-and-their-weights">3.1 The five components and their weights</h3>
+<pre><code>Trust Score = round( 0.25·Provenance
+                   + 0.25·Behavioral
+                   + 0.20·Transparency
+                   + 0.15·Security
+                   + 0.15·PeerAttestations )</code></pre>
+<p>The five weights sum to 1.0, so the composite stays on the 0–1000 scale. Each component is computed as follows:</p>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Weight</th>
+<th>How it is computed today</th>
+<th>Effective range</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Provenance</strong></td>
+<td>25%</td>
+<td>base 300; +100 each for a creator DID, a creator name, and creator type = <code>organization</code></td>
+<td>300–600</td>
+</tr>
+<tr>
+<td><strong>Behavioral</strong></td>
+<td>25%</td>
+<td>flat <strong>500</strong> placeholder — signed action history is future work</td>
+<td>500</td>
+</tr>
+<tr>
+<td><strong>Transparency</strong></td>
+<td>20%</td>
+<td>base 300; +150 open-source, +100 code repository, +100 documentation URL</td>
+<td>300–650</td>
+</tr>
+<tr>
+<td><strong>Security</strong></td>
+<td>15%</td>
+<td>base 300; +100 per declared certification (maximum +300)</td>
+<td>300–600</td>
+</tr>
+<tr>
+<td><strong>Peer Attestations</strong></td>
+<td>15%</td>
+<td><code>min(300 + round(18·√W), 1000)</code>, where <code>W</code> is the frozen-weight sum of active attestations</td>
+<td>300–1000</td>
+</tr>
+</tbody>
+</table>
+<p>There is a deliberate asymmetry here. Every component an agent can raise by <em>self-declaration</em> — provenance, transparency, security, and the flat behavioral placeholder — is capped between 500 and 650. The <strong>only</strong> component that can reach the full 1000 is <strong>peer attestations</strong>, which requires endorsements from independent parties an agent cannot fabricate on its own. Cheap, self-asserted trust caps out low by design; only earned trust moves the score meaningfully.</p>
+<h3 id="32-grades">3.2 Grades</h3>
+<p>The composite maps to one of seven letter grades. Grades are a coarse, backward-compatible summary; the numeric score and its components are the transparent detail.</p>
+<table>
+<thead>
+<tr>
+<th>Score</th>
+<th>Grade</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>≥ 950</td>
+<td>AAA</td>
+</tr>
+<tr>
+<td>≥ 850</td>
+<td>AA</td>
+</tr>
+<tr>
+<td>≥ 700</td>
+<td>A</td>
+</tr>
+<tr>
+<td>≥ 600</td>
+<td>BBB</td>
+</tr>
+<tr>
+<td>≥ 500</td>
+<td>BB</td>
+</tr>
+<tr>
+<td>≥ 400</td>
+<td>B</td>
+</tr>
+<tr>
+<td>&lt; 400</td>
+<td>C</td>
+</tr>
+</tbody>
+</table>
+<h3 id="33-the-645-ceiling--and-why-it-exists">3.3 The 645 ceiling — and why it exists</h3>
+<p>Today, the maximum score any agent can reach is <strong>645 — grade BBB</strong>. This is not an arbitrary limit; it is the arithmetic consequence of the honest component ranges above, using the most favourable possible inputs:</p>
+<pre><code>maximum = round( 0.25·600  (Provenance, fully identified organization)
+               + 0.25·500  (Behavioral, the flat placeholder)
+               + 0.20·650  (Transparency, fully open)
+               + 0.15·600  (Security, three certifications)
+               + 0.15·1000 (Peer Attestations, curve maxed) )
+        = round( 150 + 125 + 130 + 90 + 150 )
+        = 645</code></pre>
+<p>Grades <strong>A, AA, and AAA are reserved</strong> — no live agent can reach them yet. The ceiling exists for two honest reasons: the <strong>behavioral</strong> component is a fixed 500 placeholder because AIR does not yet measure real runtime behavior, and the provenance / transparency / security inputs are partly <strong>self-declared</strong> and capped accordingly. AIR would rather understate trust than overstate it; the top grades remain locked until higher-confidence inputs (behavioral telemetry, independently-verified certifications) ship. Any agent claiming a grade above BBB today is, by construction, not scored by this engine.</p>
+<h3 id="34-diminishing-returns-on-peer-attestations">3.4 Diminishing returns on peer attestations</h3>
+<p>The peer-attestation sub-score uses a square-root curve rather than a linear one:</p>
+<pre><code>PeerAttestations = min( 300 + round(18 · √W), 1000 )</code></pre>
+<p>where <code>W</code> is the sum, over active attestations from active attesters, of each vouch's <strong>frozen weight</strong> — <code>attester_trust_at_issue × tenure_multiplier_at_issue</code>, captured at the moment the attestation is issued. Three properties matter:</p>
+<ul>
+<li><strong>Diminishing returns.</strong> Because the curve is a square root, each additional vouch adds less than the one before it. Trust cannot be bought linearly by accumulating volume.</li>
+<li><strong>Frozen weights.</strong> Capturing the attester's trust and tenure <em>at issue time</em> breaks the recursive "trust pump": later raising one agent's score cannot retroactively inflate every agent it has already vouched for.</li>
+<li><strong>Dead-vouch filter.</strong> Only attestations from <em>active</em> attesters count. A vouch from a deleted or deactivated identity stops contributing, so trust cannot be propped up by vanished parties.</li>
+</ul>
+<p>With no attestations, <code>W = 0</code> and the sub-score is its baseline <strong>300</strong>.</p>
+<h3 id="35-evidence-labels--facts-not-verdicts">3.5 Evidence labels — facts, not verdicts</h3>
+<p>Alongside the numeric score, every agent carries a single <strong>evidence label</strong> — the canonical, human-facing classification. It states <em>what independent evidence exists</em>, never whether the agent is "good." There are four labels, derived mechanically:</p>
+<table>
+<thead>
+<tr>
+<th>Label</th>
+<th>What it means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Verified</strong></td>
+<td>The agent has AIR Verified status: <code>verification_score ≥ 300</code> across <strong>≥ 3 distinct WHOIS roots</strong> (see §4).</td>
+</tr>
+<tr>
+<td><strong>Attested</strong></td>
+<td>Not Verified, but at least one active independent attestation exists.</td>
+</tr>
+<tr>
+<td><strong>Self-declared</strong></td>
+<td>No attestations; a self-reported provenance, transparency, or security signal has raised a component above its 300 anonymous baseline.</td>
+</tr>
+<tr>
+<td><strong>Registered</strong></td>
+<td>The anonymous baseline — registered, but no enrichment and no attestations.</td>
+</tr>
+</tbody>
+</table>
+<p>The labels are versioned (the current definition version is <strong>2026-06-09</strong>), and every label the API returns carries the explicit disclaimer that it is <em>"derived mechanically from published criteria; not an endorsement or certification by AIR."</em> This is the neutrality principle made concrete: AIR reports evidence and lets the reader judge.</p>
+<h3 id="36-a-worked-example">3.6 A worked example</h3>
+<p>Consider <em>AnalyticsBot-v2</em>, an agent whose creator provided a DID but no organization identity, marked its code open-source but gave no repository or docs URL, declared one security certification, and has no attestations yet:</p>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Score</th>
+<th>Basis</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Provenance</td>
+<td>400</td>
+<td>base 300 + creator DID (+100)</td>
+</tr>
+<tr>
+<td>Behavioral</td>
+<td>500</td>
+<td>flat placeholder</td>
+</tr>
+<tr>
+<td>Transparency</td>
+<td>550</td>
+<td>base 300 + open-source (+150)</td>
+</tr>
+<tr>
+<td>Security</td>
+<td>400</td>
+<td>base 300 + one certification (+100)</td>
+</tr>
+<tr>
+<td>Peer Attestations</td>
+<td>300</td>
+<td>baseline (<code>W = 0</code>)</td>
+</tr>
+</tbody>
+</table>
+<pre><code>Score = round( 0.25·400 + 0.25·500 + 0.20·550 + 0.15·400 + 0.15·300 )
+      = round( 100 + 125 + 110 + 60 + 45 )
+      = 440</code></pre>
+<p>This yields a trust score of <strong>440</strong>, grade <strong>B</strong>, and — because a self-declared signal (open-source) lifted transparency above baseline while no attestation exists — the evidence label <strong>Self-declared</strong>.</p>
+<hr />
+<h2 id="4-cryptographic-verification--the-moat">4. Cryptographic Verification — the Moat</h2>
+<p>The trust score summarizes many weak signals. <strong>AIR Verified</strong> does one thing rigorously: it certifies that independent parties have cryptographically vouched for an agent <em>across organizational boundaries</em>. This is the architecture's moat, because it is the one signal a single vendor structurally cannot produce. Every value in this section is verified directly against <code>api/src/index.js</code> and <code>api/src/trust.mjs</code>.</p>
+<h3 id="41-the-attestation-model">4.1 The attestation model</h3>
+<p>An <strong>attestation</strong> is a signed vouch by one registered agent for another. Attestations are <strong>signed client-side — the registry never sees a private key.</strong> To issue one, an attester:</p>
+<ol type="1">
+<li>builds the payload <code>{ attester_air_id, attestation_type, signed_at, statement, subject_air_id }</code>;</li>
+<li>canonicalizes it (JCS / RFC 8785) and signs the canonical bytes with its <strong>Ed25519</strong> key;</li>
+<li>multibase-encodes the signature; and</li>
+<li>submits it to <code>POST /agents/{subject_air_id}/attestations</code>, authenticated by the <em>attester's</em> own secret.</li>
+</ol>
+<p>Because the signed payload and signature are stored and published, anyone can later re-verify the signature against the attester's independently-resolved public key. The vouch is a portable cryptographic object, not a database row you have to trust AIR about.</p>
+<h3 id="42-air-verified">4.2 AIR Verified</h3>
+<p>An agent earns the <strong>AIR Verified</strong> status when its live attestation aggregate satisfies <strong>both</strong> conditions:</p>
+<pre><code>verification_score ≥ 300   AND   distinct_whois_roots ≥ 3</code></pre>
+<p>where <code>verification_score</code> is the sum, over active attestations from active attesters, of each vouch's frozen weight (<code>attester_trust_at_issue × tenure_multiplier_at_issue</code>), and <code>distinct_whois_roots</code> counts the separate registrable domains behind those attesters. Both thresholds apply the <strong>dead-vouch filter</strong>: a vouch from a deleted or deactivated attester counts toward neither.</p>
+<h3 id="43-the-six-locks">4.3 The six locks</h3>
+<p>Whether an attestation counts toward Verified is gated by six enforced checks:</p>
+<ol type="1">
+<li><strong>Live key binding.</strong> The attester's DID must be a <code>did:wba</code> that resolves live at issue time. For an <em>external</em> <code>did:wba</code>, the freshly-resolved DID document must advertise the exact Ed25519 public key AIR holds on file — a byte-equal <code>publicKeyMultibase</code> in the document's <code>verificationMethod[]</code> — and the signature must verify against it. The check is <strong>fail-closed</strong>: a missing, malformed, redirected, non-JSON, or key-absent document voids the vouch. (AIR-minted DIDs are self-consistent by construction and skip re-resolution.)</li>
+<li><strong>Distinct WHOIS root.</strong> The attester's registrable domain (eTLD+1) must differ from the subject's <em>and</em> from every other active attester's; a duplicate root is rejected. This is the Sybil moat.</li>
+<li><strong>Attester eligibility.</strong> The attester must have a tenure of <strong>≥ 30 days</strong> and its own trust score of <strong>≥ 50</strong> — established identities, not fresh throwaway accounts.</li>
+<li><strong>Frozen weighting.</strong> The vouch contributes <code>attester_trust_at_issue × tenure_multiplier_at_issue</code>, where the tenure multiplier is a step function: <strong>0</strong> below 30 days, <strong>0.5</strong> at 30–90 days, <strong>1.0</strong> at 90–365 days, <strong>1.5</strong> beyond 365 days. Freezing the weight at issue time breaks the recursive "trust pump" — later raising an attester's score cannot retroactively inflate everyone it has already vouched for.</li>
+<li><strong>Rate limit.</strong> At most <strong>10</strong> active attestations per attester per rolling <strong>7-day</strong> window.</li>
+<li><strong>Public audit trail.</strong> Every attestation — active and revoked — is stored with its full signed payload and signature, so any third party can re-verify it without registry access.</li>
+</ol>
+<p>A seventh mechanism — economic slashing — is designed but deliberately deferred until the governance rules that would trigger it are settled. It is documented here as future work, not claimed as shipped.</p>
+<h3 id="44-hardened-resolution-and-key-encoding">4.4 Hardened resolution and key encoding</h3>
+<p>External <code>did:wba</code> resolution is hardened against substitution attacks: it <strong>rejects redirects</strong>, requires a JSON content type (guarding against HTML/SPA fallback pages), and reads only up to a fixed byte cap. Ed25519 keys are encoded as <code>publicKeyMultibase</code> — multicodec prefix <code>0xed01</code>, base58btc, <code>z</code> multibase prefix — the same encoding <code>did:key</code> uses, so any standard resolver can consume them. Non-canonical DIDs on the AIR domain are hard-rejected before any lookup, so no future catch-all route can become a key-substitution vector.</p>
+<h3 id="45-why-a-single-vendor-cannot-offer-neutral-verified">4.5 Why a single vendor cannot offer neutral Verified</h3>
+<p>The requirement for <strong>three distinct WHOIS roots</strong> is not merely Sybil resistance — it is the neutrality guarantee, expressed as a mechanism. A single vendor issuing "verified" badges is, by construction, <em>one</em> root vouching for agents inside its own ecosystem; it can satisfy at most one of the three required roots. Crucially, the same limit binds AIR itself: because all AIR-minted identities share the single <code>agentidentityregistry.org</code> root, they too count as only one root. It follows that <strong>even AIR cannot manufacture a Verified agent</strong> — Verified is reachable only through the genuine, independent participation of at least three separately-rooted parties. Neutrality here is a property of the algorithm, not a clause in a policy document.</p>
+<hr />
+<h2 id="5-the-trust-graph">5. The Trust Graph</h2>
+<p>Trust is relational. The useful questions are not only "how trustworthy is this agent?" but "who vouches for it, who depends on it, and what does the surrounding structure reveal?" A per-agent score compresses that structure into a single number; the trust graph exposes the structure itself, through three public endpoints:</p>
+<ul>
+<li><strong>Ego graph</strong> — <code>GET /agents/{air_id}/graph</code> returns the agent's direct (1-hop) trust edges: <code>inbound</code> (who vouches for this agent) and <code>outbound</code> (who it vouches for). Active edges only.</li>
+<li><strong>Dependents / blast radius</strong> — <code>GET /agents/{air_id}/dependents</code> returns the transitive set of agents that depend on this one, directly or through a chain, by following dependency edges in reverse. It answers <em>"if this agent is compromised, who is affected?"</em> — bounded by a <code>depth</code> parameter (default 6, maximum 10) and a node <code>limit</code> (default 500, maximum 1000), with a <code>truncated</code> flag when the cap clips the result.</li>
+<li><strong>Registry-wide statistics</strong> — <code>GET /graph/stats</code> returns node and edge counts, edges broken down by attestation type, and the most-attested agents and most-active attesters.</li>
+</ul>
+<p>Topology matters because it surfaces attacks that a flat score hides. A cluster of agents that vouch only for one another — a <strong>self-attestation ring</strong> — can each display a respectable peer sub-score, yet the ring appears as a dense, inward-facing subgraph with few edges to the rest of the network. Making that structure publicly inspectable is what raises the cost of gaming: it is no longer enough to inflate a number, because the <em>shape</em> of the trust around an agent must also look legitimate. This complements the WHOIS-root diversity rule of §4, which forces genuine Verified edges to cross organizational boundaries — precisely the signature of a healthy topology.</p>
+<hr />
+<h2 id="6-tamper-evident-auditability">6. Tamper-Evident Auditability</h2>
+<p>A trust registry that can quietly edit its own history is not trustworthy, however good its scoring is. AIR therefore records every change to an agent's record in a public, append-only, hash-linked audit log — and, crucially, anchors that log <em>outside</em> its own control so that the guarantee holds even against the registry operator.</p>
+<h3 id="61-what-is-logged">6.1 What is logged</h3>
+<p>Every <code>registered</code>, <code>updated</code>, and <code>deleted</code> event on an agent record produces one entry. Each entry records the <strong>fact</strong> of the change — the subject's AIR ID, the event, which public field <em>names</em> changed, the actor type, and a worker-generated timestamp — but never the old or new field <em>values</em>. A fourth event, <code>redacted</code>, is a tombstone used for legal erasure (§6.5).</p>
+<h3 id="62-a-reproducible-hash-chain">6.2 A reproducible hash chain</h3>
+<p>Each entry's hash is computed from a fully public recipe:</p>
+<pre><code>entry_hash = sha256hex(
+  [air_id, event, sorted-canonical(changed_fields), actor, created_at].join(&quot;\n&quot;)
+  + &quot;\n&quot; + prev_hash
+)</code></pre>
+<p>The changed-field names are sorted and JCS-canonicalized (RFC 8785) so the serialization is deterministic; the first entry uses the literal sentinel <code>"GENESIS"</code> as its <code>prev_hash</code>; and the surrogate row <code>id</code> is deliberately excluded so that ordering and linkage come only from the hash chain. Anyone — in any language — can re-derive every <code>entry_hash</code> and confirm the <code>prev_hash</code> linkage with no access to the registry's internals. A <code>UNIQUE(prev_hash)</code> constraint enforces a single linear chain and turns concurrent writes into a clean retryable conflict rather than a fork.</p>
+<h3 id="63-the-operator-trust-problem--stated-honestly">6.3 The operator-trust problem — stated honestly</h3>
+<p>A hash chain, on its own, does not protect against the party that holds the database. If the chain's tip lives only in AIR's own storage, whoever controls that storage could rewrite the chain end-to-end — or truncate its tail — and simply re-derive a consistent tip. A naive <code>verify</code> would still pass. AIR's first audit-log design was exactly this, and an independent review rejected it for precisely this reason: "tamper-evident against the operator" was, at that point, false.</p>
+<h3 id="64-the-external-anchor--the-fix-that-makes-the-claim-honest">6.4 The external anchor — the fix that makes the claim honest</h3>
+<p>The fix is to publish the chain's tip somewhere AIR cannot silently rewrite. Every week (Sunday 03:00 UTC), the registry computes the global chain's <code>(tip_hash, entry_count)</code>, signs it with its Ed25519 key, and commits it to a dedicated <strong>public, append-only external repository</strong> — <a href="https://github.com/AgentIdentityRegistry/audit-anchors"><code>AgentIdentityRegistry/audit-anchors</code></a>. That repository's own commit history is the outside witness. <code>GET /api/v1/audit/verify</code> then cross-checks the live chain's tip against the last published anchor (<code>last_anchor.matches</code>): any rewrite of history <em>before</em> the last anchor, or any truncation below the anchored entry count, becomes externally detectable by anyone.</p>
+<p>The honest bound, stated the way it appears in AIR's own specification, is: <strong>tamper-evident against accidental corruption and against the operator back to the last weekly anchor</strong> — not real-time-guaranteed between anchors. Changes made and reverted within a single week, before the next anchor is published, are the residual gap; the anchor cadence bounds it, and shortening that cadence is a straightforward future tightening.</p>
+<h3 id="65-privacy-and-erasure">6.5 Privacy and erasure</h3>
+<p>The chain stores only pseudonymous data — an AIR ID, field names, actor type, timing, and hashes; no names, emails, or field values. Legal erasure is handled by writing a <code>redacted</code> tombstone that records <em>that</em> a subject was erased, rather than by silently deleting entries (which would break the chain). Legal review is recommended before any privacy-regulated deployment.</p>
+<hr />
+<h2 id="7-threat-model">7. Threat Model</h2>
+<p>A neutral registry earns trust by being specific about what it does and does not defend against. The mechanisms of §3–§6 are organized here against concrete attacks.</p>
+<h3 id="71-what-the-architecture-defends-against">7.1 What the architecture defends against</h3>
+<table>
+<thead>
+<tr>
+<th>Attack</th>
+<th>Defense</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Self-attestation</strong> — an agent vouching for itself to appear endorsed</td>
+<td>Lock 2 requires the attester's WHOIS root to differ from the subject's; a self-vouch is rejected.</td>
+</tr>
+<tr>
+<td><strong>Sybil via a shared root</strong> — many identities under one domain manufacturing endorsements</td>
+<td>Verified requires ≥ 3 <em>distinct</em> WHOIS roots; identities sharing a root count once. AIR-minted identities all share one root and so cannot alone confer Verified.</td>
+</tr>
+<tr>
+<td><strong>Fresh throwaway attesters</strong> — spinning up new identities to vouch</td>
+<td>Lock 3 requires attester tenure ≥ 30 days and its own trust ≥ 50.</td>
+</tr>
+<tr>
+<td><strong>Buying trust by volume</strong> — flooding an agent with vouches</td>
+<td>The square-root peer curve yields diminishing returns, and Lock 5 caps issuance at 10 per attester per 7 days.</td>
+</tr>
+<tr>
+<td><strong>The recursive trust pump</strong> — inflating an attester later to retroactively lift its past vouches</td>
+<td>Weights are frozen at issue time (Lock 4).</td>
+</tr>
+<tr>
+<td><strong>Dead-vouch propping</strong> — trust sustained by deleted attesters</td>
+<td>The dead-vouch filter drops vouches from inactive attesters and rescores dependents.</td>
+</tr>
+<tr>
+<td><strong>Key substitution / replay</strong> — forging or replaying an attestation</td>
+<td>Live <code>did:wba</code> key binding (Lock 1, fail-closed), signed-payload freshness, and a uniqueness guard on signatures.</td>
+</tr>
+<tr>
+<td><strong>Operator tampering with history</strong> — the registry silently editing its own audit log</td>
+<td>The weekly external anchor (§6.4) makes pre-anchor rewrites and truncations externally detectable.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="72-what-it-explicitly-does-not-defend-against">7.2 What it explicitly does not defend against</h3>
+<ul>
+<li><strong>A determined multi-organization collusion.</strong> Three <em>genuinely independent</em> organizations that choose to vouch dishonestly for one another can satisfy the three-root requirement. The architecture raises the cost of manufactured trust; it does not make coordinated real-world collusion impossible.</li>
+<li><strong>Real runtime behavior.</strong> The behavioral component is a fixed placeholder today. AIR does not yet measure whether an agent actually behaves well in production — only the evidence surrounding its identity and endorsements.</li>
+<li><strong>Between-anchor integrity in real time.</strong> Audit integrity is guaranteed only back to the last weekly anchor; a change made and reverted inside a single anchor window is the residual gap.</li>
+<li><strong>The truth of self-declared inputs.</strong> Provenance, transparency, and security signals asserted at registration are taken at face value and reflected in the score's evidence label as <em>self-declared</em>, not independently verified.</li>
+</ul>
+<hr />
+<h2 id="8-current-state--limitations">8. Current State &amp; Limitations</h2>
+<p>This section is deliberately prominent. A neutral registry that certifies others is obliged to be candid about itself.</p>
+<ul>
+<li><strong>The infrastructure is live.</strong> The registry API, the five-component score, attestations and AIR Verified, the trust graph, the externally-anchored audit log, the Python and TypeScript SDKs, and the MCP server are all deployed in production.</li>
+<li><strong>The network is in cold-start.</strong> The mechanisms exist, but a trust network needs participants. Because Verified requires endorsements from three independently-rooted attesters, building that first cohort of independent attesters is the central bootstrapping challenge at this stage — and the honest current state is early.</li>
+<li><strong>The score is capped at grade BBB (645/1000).</strong> No live agent can exceed 645 today; grades A, AA, and AAA are reserved (see §3.3).</li>
+<li><strong>Behavioral scoring is a flat 500 placeholder.</strong> Real runtime telemetry is future work, so this quarter of the score does not yet differentiate agents.</li>
+<li><strong>Several inputs are self-declared.</strong> Provenance, transparency, and security signals — including security certifications — are asserted at registration and not yet independently audited.</li>
+<li><strong>Audit integrity is anchored weekly, not in real time.</strong> The tamper-evidence guarantee holds back to the last weekly anchor, as stated in §6.4.</li>
+</ul>
+<p>None of these are hidden in an appendix, because admitting them <em>is</em> the neutrality argument: a registry that overstated its own maturity could not credibly ask anyone to trust its assessment of others.</p>
+<hr />
+<h2 id="9-governance--roadmap">9. Governance &amp; Roadmap</h2>
+<h3 id="91-neutrality-as-governance-not-just-as-a-value">9.1 Neutrality as governance, not just as a value</h3>
+<p>AIR is operated by a nonprofit foundation and is <strong>pursuing formal 501(c)(3) status</strong> (in progress). Its governance is designed so that neutrality survives changes in people and funding:</p>
+<ul>
+<li><strong>No privileged standing, including for AIR.</strong> There is no founder's pass. As §4.5 shows, the three-independent-root requirement for Verified binds the registry itself — AIR cannot confer Verified on its own agents.</li>
+<li><strong>One member, one vote.</strong> Governance uses a fixed-size board with no weighted voting, and technical or trust-methodology changes require a supermajority plus a published public comment period, so no single party can quietly alter the rules.</li>
+<li><strong>Versioned, published methodology.</strong> Scoring and evidence-label definitions are versioned (the API echoes a <code>definition_version</code>) and changes are announced and changelogged. A disputed score can be appealed through a published process.</li>
+<li><strong>Non-extractive funding.</strong> The foundation's model excludes sponsored rankings and data-sale incentives that would compromise neutrality; sustainability is sought through grants and modest, published API licensing.</li>
+</ul>
+<h3 id="92-standards-engagement">9.2 Standards engagement</h3>
+<p>AIR builds <em>within</em> existing standards rather than attempting to replace them, and participates in the surrounding ecosystem:</p>
+<ul>
+<li><strong>W3C</strong> — Decentralized Identifiers (DID Core) and the Verifiable Credentials Data Model are the foundation of AIR's identity layer; AIR has engaged the W3C AI Agent Protocol Community Group.</li>
+<li><strong>DIF</strong> — AIR contributes as a DID/VC-native implementation in the Trusted AI Agents working group.</li>
+<li><strong>IETF</strong> — AIR tracks AIMS / WIMSE agent-authentication work as complementary to its trust layer.</li>
+<li><strong>NIST</strong> — AIR submitted a public comment to CAISI on agent identity and authorization.</li>
+<li><strong>Content provenance (C2PA / CAWG)</strong> — persistent agent identity is a natural complement to content-provenance efforts, an integration AIR is exploring.</li>
+</ul>
+<h3 id="93-roadmap--shipped-and-the-honest-next-steps">9.3 Roadmap — shipped, and the honest next steps</h3>
+<p><strong>Shipped and live in production:</strong> the registry API and OpenAPI 3.1 contract; the five-component trust score; attestations and AIR Verified (the six locks); the trust graph; factual evidence labels; the externally-anchored audit log; Python and TypeScript SDKs; and an MCP server.</p>
+<p><strong>In progress and planned:</strong> establishing the legal entity (501(c)(3) or equivalent); at least one grant application (NSF, Open Technology Fund, or similar); an independent security audit of the registry infrastructure, to be published; advancing the Identity Specification from v0.1 through formal community review to a v0.2 draft; real behavioral telemetry to replace the flat-500 placeholder and, with it, unlocking the reserved A/AA/AAA grades; write operations in the MCP server; and a capability ontology.</p>
+<p><strong>The gating priority is the cold-start.</strong> Because Verified requires endorsements from three independently-rooted attesters, the single highest-leverage step is assembling that first cohort of independent attesters. Nearly everything trust-related — live Verified data, real trust-graph topology, and meaningful score distributions — depends on that live attestation data accumulating. The architecture is built; the network is what comes next.</p>
+<hr />
+<h2 id="10-how-to-verify-or-build-on-air">10. How to Verify or Build on AIR</h2>
+<p>Consistent with the verifiability principle, everything here is public and reproducible.</p>
+<h3 id="101-verify--dont-trust-check">10.1 Verify — don't trust, check</h3>
+<ul>
+<li><strong>Recompute an identity.</strong> An AIR ID is the SHA-256 of the agent's canonical identity document; anyone can recompute it and confirm the identifier matches the record.</li>
+<li><strong>Re-check an attestation.</strong> Each attestation stores its signed payload and Ed25519 signature; anyone can re-verify the signature against the attester's independently-resolved public key.</li>
+<li><strong>Re-derive the audit chain.</strong> Every audit entry's hash follows a published recipe (§6.2); <code>GET /api/v1/audit/verify</code> cross-checks the live chain tip against the last anchor published to the public <a href="https://github.com/AgentIdentityRegistry/audit-anchors"><code>audit-anchors</code></a> repository, and <code>GET /api/v1/audit/anchor</code> returns that latest anchor.</li>
+</ul>
+<h3 id="102-build">10.2 Build</h3>
+<ul>
+<li><strong>Live API base:</strong> <code>https://agentidentityregistry.org/api/v1</code></li>
+<li><strong>Machine-readable contract:</strong> the OpenAPI 3.1 document at <code>/api/v1/openapi.yaml</code>, which generates clients in any language.</li>
+<li><strong>SDKs:</strong> <code>agent-identity-registry</code> on <strong>PyPI</strong> (Python) and on <strong>npm</strong> (TypeScript, published with SLSA provenance).</li>
+<li><strong>MCP server:</strong> <code>air-mcp-server</code> on <strong>PyPI</strong>, which drops AIR lookups into any MCP-aware LLM client.</li>
+<li><strong>Key public endpoints:</strong> <code>GET /agents/{air_id}</code> (full record), <code>/trust-score</code>, <code>/did-document</code>, <code>/attestations</code>, <code>/graph</code>, <code>/dependents</code>, <code>/graph/stats</code>, <code>/history</code>, and <code>/audit/verify</code>.</li>
+<li><strong>Full rubrics and spec:</strong> <code>docs/TRUST-SCORE.md</code> (component rubrics, dispute process) and <code>docs/SPECIFICATION.md</code> (the AIR Identity Specification).</li>
+</ul>
+<hr />
+<h2 id="references">References</h2>
+<p>Prior art and standards AIR builds on:</p>
+<ul>
+<li>W3C — <em>Decentralized Identifiers (DIDs) v1.0</em>.</li>
+<li>W3C — <em>Verifiable Credentials Data Model</em>.</li>
+<li><em>did:wba</em> — the Web-Based Authentication DID method (DNS/WHOIS-anchored; draft).</li>
+<li>IETF RFC 8785 — <em>JSON Canonicalization Scheme (JCS)</em>.</li>
+<li>IETF RFC 8032 — <em>Edwards-Curve Digital Signature Algorithm (EdDSA)</em> / Ed25519.</li>
+<li>FIPS 180-4 — <em>SHA-256</em>.</li>
+<li>C2PA / CAWG — content provenance and creator-assertion work.</li>
+</ul>
+<p>AIR's own primary sources: <code>docs/SPECIFICATION.md</code>, <code>docs/TRUST-SCORE.md</code>, <code>api/openapi.yaml</code>, and the <code>api/src/trust.mjs</code> scoring engine — each of which governs the corresponding claims in this paper.</p>
+<hr />
+<h2 id="appendix-a--formulas">Appendix A — Formulas</h2>
+<p><strong>Composite trust score</strong> (each component scored 0–1000):</p>
+<pre><code>Trust Score = round( 0.25·Provenance + 0.25·Behavioral + 0.20·Transparency
+                   + 0.15·Security + 0.15·PeerAttestations )</code></pre>
+<p><strong>Component ranges as implemented today:</strong> Provenance 300–600 · Behavioral 500 (flat) · Transparency 300–650 · Security 300–600 · Peer Attestations 300–1000. Maximum achievable composite: <strong>645 (grade BBB)</strong>.</p>
+<p><strong>Peer-attestation sub-score:</strong></p>
+<pre><code>PeerAttestations = min( 300 + round(18 · √W), 1000 )
+W = Σ (attester_trust_at_issue × tenure_multiplier_at_issue)   over active attestations from active attesters
+tenure_multiplier = 0 (&lt;30d) · 0.5 (30–90d) · 1.0 (90–365d) · 1.5 (&gt;365d)</code></pre>
+<p><strong>AIR Verified:</strong></p>
+<pre><code>Verified  ⟺  verification_score ≥ 300  AND  distinct_whois_roots ≥ 3
+verification_score = W (as above)</code></pre>
+<p><strong>Grade thresholds:</strong> AAA ≥ 950 · AA ≥ 850 · A ≥ 700 · BBB ≥ 600 · BB ≥ 500 · B ≥ 400 · C &lt; 400.</p>
+<p><strong>Audit entry hash:</strong></p>
+<pre><code>entry_hash = sha256hex(
+  [air_id, event, sorted-canonical(changed_fields), actor, created_at].join(&quot;\n&quot;)
+  + &quot;\n&quot; + prev_hash )         // prev_hash = &quot;GENESIS&quot; for the first entry</code></pre>
+<h2 id="appendix-b--glossary">Appendix B — Glossary</h2>
+<ul>
+<li><strong>Agent</strong> — an autonomous software system capable of independent action.</li>
+<li><strong>AIR ID</strong> — a content-addressed, Crockford-Base32 identifier (<code>AIR-XXXX-XXXX-XXXX</code>) derived from the SHA-256 of an agent's identity document.</li>
+<li><strong>Attestation</strong> — a cryptographically signed vouch by one registered agent for another, signed with Ed25519 over the JCS-canonical payload.</li>
+<li><strong>AIR Verified</strong> — status granted when an agent's active attestation aggregate reaches <code>verification_score ≥ 300</code> across <strong>≥ 3 distinct WHOIS roots</strong>.</li>
+<li><strong>WHOIS root</strong> — the registrable domain (eTLD+1) behind an attester's identity; the unit of independence used to resist Sybil attacks.</li>
+<li><strong>Evidence label</strong> — a factual classification (<em>Verified / Attested / Self-declared / Registered</em>) describing what independent evidence exists for an agent, never an endorsement.</li>
+<li><strong>Trust score</strong> — a weighted composite (0–1000) of five components: provenance, behavioral, transparency, security, and peer attestations.</li>
+<li><strong>did:wba</strong> — a DNS-anchored Decentralized Identifier method (Web-Based Authentication) used for AIR-minted and external agent DIDs.</li>
+<li><strong>External anchor</strong> — the weekly <code>(tip_hash, entry_count)</code> record published to a public, append-only repository so that audit integrity can be checked without trusting the registry operator.</li>
+</ul>
+<hr />
+<p><em>Agent Identity Registry Foundation — building neutral infrastructure for AI agent trust. This paper documents the architecture as deployed; where this prose and the source (<code>api/src/trust.mjs</code>, <code>api/openapi.yaml</code>) disagree, the source governs.</em></p>
+        </article>
+    </div>
+</main>
+
+<footer>
+    <div class="container">
+        <div class="footer-brand">AIR</div>
+        <p>&copy; 2026 Agent Identity Registry Foundation. Specifications released under Apache 2.0.</p>
+        <p style="margin-top:0.5rem;"><a href="/">Home</a> &middot; <a href="/lookup">Lookup</a> &middot; <a href="/governance">Governance</a> &middot; <a href="/whitepaper">Whitepaper</a> &middot; <a href="https://github.com/AgentIdentityRegistry/agent-identity-registry" target="_blank" rel="noopener">GitHub</a> &middot; <a href="/contact">Contact</a></p>
+    </div>
+</footer>
+</body>
+</html>
