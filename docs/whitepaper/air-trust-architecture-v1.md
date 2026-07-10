@@ -339,3 +339,125 @@ This section is deliberately prominent. A neutral registry that certifies others
 - **Audit integrity is anchored weekly, not in real time.** The tamper-evidence guarantee holds back to the last weekly anchor, as stated in §6.4.
 
 None of these are hidden in an appendix, because admitting them *is* the neutrality argument: a registry that overstated its own maturity could not credibly ask anyone to trust its assessment of others.
+
+---
+
+## 9. Governance & Roadmap
+
+### 9.1 Neutrality as governance, not just as a value
+
+AIR is operated by a nonprofit foundation and is **pursuing formal 501(c)(3) status** (in progress). Its governance is designed so that neutrality survives changes in people and funding:
+
+- **No privileged standing, including for AIR.** There is no founder's pass. As §4.5 shows, the three-independent-root requirement for Verified binds the registry itself — AIR cannot confer Verified on its own agents.
+- **One member, one vote.** Governance uses a fixed-size board with no weighted voting, and technical or trust-methodology changes require a supermajority plus a published public comment period, so no single party can quietly alter the rules.
+- **Versioned, published methodology.** Scoring and evidence-label definitions are versioned (the API echoes a `definition_version`) and changes are announced and changelogged. A disputed score can be appealed through a published process.
+- **Non-extractive funding.** The foundation's model excludes sponsored rankings and data-sale incentives that would compromise neutrality; sustainability is sought through grants and modest, published API licensing.
+
+### 9.2 Standards engagement
+
+AIR builds *within* existing standards rather than attempting to replace them, and participates in the surrounding ecosystem:
+
+- **W3C** — Decentralized Identifiers (DID Core) and the Verifiable Credentials Data Model are the foundation of AIR's identity layer; AIR has engaged the W3C AI Agent Protocol Community Group.
+- **DIF** — AIR contributes as a DID/VC-native implementation in the Trusted AI Agents working group.
+- **IETF** — AIR tracks AIMS / WIMSE agent-authentication work as complementary to its trust layer.
+- **NIST** — AIR submitted a public comment to CAISI on agent identity and authorization.
+- **Content provenance (C2PA / CAWG)** — persistent agent identity is a natural complement to content-provenance efforts, an integration AIR is exploring.
+
+### 9.3 Roadmap — shipped, and the honest next steps
+
+**Shipped and live in production:** the registry API and OpenAPI 3.1 contract; the five-component trust score; attestations and AIR Verified (the six locks); the trust graph; factual evidence labels; the externally-anchored audit log; Python and TypeScript SDKs; and an MCP server.
+
+**In progress and planned:** establishing the legal entity (501(c)(3) or equivalent); at least one grant application (NSF, Open Technology Fund, or similar); an independent security audit of the registry infrastructure, to be published; advancing the Identity Specification from v0.1 through formal community review to a v0.2 draft; real behavioral telemetry to replace the flat-500 placeholder and, with it, unlocking the reserved A/AA/AAA grades; write operations in the MCP server; and a capability ontology.
+
+**The gating priority is the cold-start.** Because Verified requires endorsements from three independently-rooted attesters, the single highest-leverage step is assembling that first cohort of independent attesters. Nearly everything trust-related — live Verified data, real trust-graph topology, and meaningful score distributions — depends on that live attestation data accumulating. The architecture is built; the network is what comes next.
+
+---
+
+## 10. How to Verify or Build on AIR
+
+Consistent with the verifiability principle, everything here is public and reproducible.
+
+### 10.1 Verify — don't trust, check
+
+- **Recompute an identity.** An AIR ID is the SHA-256 of the agent's canonical identity document; anyone can recompute it and confirm the identifier matches the record.
+- **Re-check an attestation.** Each attestation stores its signed payload and Ed25519 signature; anyone can re-verify the signature against the attester's independently-resolved public key.
+- **Re-derive the audit chain.** Every audit entry's hash follows a published recipe (§6.2); `GET /api/v1/audit/verify` cross-checks the live chain tip against the last anchor published to the public [`audit-anchors`](https://github.com/AgentIdentityRegistry/audit-anchors) repository, and `GET /api/v1/audit/anchor` returns that latest anchor.
+
+### 10.2 Build
+
+- **Live API base:** `https://agentidentityregistry.org/api/v1`
+- **Machine-readable contract:** the OpenAPI 3.1 document at `/api/v1/openapi.yaml`, which generates clients in any language.
+- **SDKs:** `agent-identity-registry` on **PyPI** (Python) and on **npm** (TypeScript, published with SLSA provenance).
+- **MCP server:** `air-mcp-server` on **PyPI**, which drops AIR lookups into any MCP-aware LLM client.
+- **Key public endpoints:** `GET /agents/{air_id}` (full record), `/trust-score`, `/did-document`, `/attestations`, `/graph`, `/dependents`, `/graph/stats`, `/history`, and `/audit/verify`.
+- **Full rubrics and spec:** `docs/TRUST-SCORE.md` (component rubrics, dispute process) and `docs/SPECIFICATION.md` (the AIR Identity Specification).
+
+---
+
+## References
+
+Prior art and standards AIR builds on:
+
+- W3C — *Decentralized Identifiers (DIDs) v1.0*.
+- W3C — *Verifiable Credentials Data Model*.
+- *did:wba* — the Web-Based Authentication DID method (DNS/WHOIS-anchored; draft).
+- IETF RFC 8785 — *JSON Canonicalization Scheme (JCS)*.
+- IETF RFC 8032 — *Edwards-Curve Digital Signature Algorithm (EdDSA)* / Ed25519.
+- FIPS 180-4 — *SHA-256*.
+- C2PA / CAWG — content provenance and creator-assertion work.
+
+AIR's own primary sources: `docs/SPECIFICATION.md`, `docs/TRUST-SCORE.md`, `api/openapi.yaml`, and the `api/src/trust.mjs` scoring engine — each of which governs the corresponding claims in this paper.
+
+---
+
+## Appendix A — Formulas
+
+**Composite trust score** (each component scored 0–1000):
+
+```
+Trust Score = round( 0.25·Provenance + 0.25·Behavioral + 0.20·Transparency
+                   + 0.15·Security + 0.15·PeerAttestations )
+```
+
+**Component ranges as implemented today:** Provenance 300–600 · Behavioral 500 (flat) · Transparency 300–650 · Security 300–600 · Peer Attestations 300–1000. Maximum achievable composite: **645 (grade BBB)**.
+
+**Peer-attestation sub-score:**
+
+```
+PeerAttestations = min( 300 + round(18 · √W), 1000 )
+W = Σ (attester_trust_at_issue × tenure_multiplier_at_issue)   over active attestations from active attesters
+tenure_multiplier = 0 (<30d) · 0.5 (30–90d) · 1.0 (90–365d) · 1.5 (>365d)
+```
+
+**AIR Verified:**
+
+```
+Verified  ⟺  verification_score ≥ 300  AND  distinct_whois_roots ≥ 3
+verification_score = W (as above)
+```
+
+**Grade thresholds:** AAA ≥ 950 · AA ≥ 850 · A ≥ 700 · BBB ≥ 600 · BB ≥ 500 · B ≥ 400 · C < 400.
+
+**Audit entry hash:**
+
+```
+entry_hash = sha256hex(
+  [air_id, event, sorted-canonical(changed_fields), actor, created_at].join("\n")
+  + "\n" + prev_hash )         // prev_hash = "GENESIS" for the first entry
+```
+
+## Appendix B — Glossary
+
+- **Agent** — an autonomous software system capable of independent action.
+- **AIR ID** — a content-addressed, Crockford-Base32 identifier (`AIR-XXXX-XXXX-XXXX`) derived from the SHA-256 of an agent's identity document.
+- **Attestation** — a cryptographically signed vouch by one registered agent for another, signed with Ed25519 over the JCS-canonical payload.
+- **AIR Verified** — status granted when an agent's active attestation aggregate reaches `verification_score ≥ 300` across **≥ 3 distinct WHOIS roots**.
+- **WHOIS root** — the registrable domain (eTLD+1) behind an attester's identity; the unit of independence used to resist Sybil attacks.
+- **Evidence label** — a factual classification (*Verified / Attested / Self-declared / Registered*) describing what independent evidence exists for an agent, never an endorsement.
+- **Trust score** — a weighted composite (0–1000) of five components: provenance, behavioral, transparency, security, and peer attestations.
+- **did:wba** — a DNS-anchored Decentralized Identifier method (Web-Based Authentication) used for AIR-minted and external agent DIDs.
+- **External anchor** — the weekly `(tip_hash, entry_count)` record published to a public, append-only repository so that audit integrity can be checked without trusting the registry operator.
+
+---
+
+*Agent Identity Registry Foundation — building neutral infrastructure for AI agent trust. This paper documents the architecture as deployed; where this prose and the source (`api/src/trust.mjs`, `api/openapi.yaml`) disagree, the source governs.*
