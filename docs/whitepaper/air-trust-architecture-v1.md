@@ -21,10 +21,10 @@ AIR combines five mechanisms into one architecture:
 1. **A transparent trust score** — a published, weighted composite of five components on a 0–1000 scale, with every weight and threshold documented and queryable.
 2. **Cryptographic verification (the moat)** — an "AIR Verified" status that requires cryptographically-signed endorsements from independent attesters anchored to **three or more distinct WHOIS roots**, gated by six enforced checks.
 3. **A cross-organization trust graph** — trust modeled as a relational topology (who vouches for whom, who depends on whom), which surfaces self-attestation rings that a flat score would hide.
-4. **A tamper-evident audit log** — an append-only, hash-linked record of every change to an agent's record, whose chain tip is anchored weekly to a public external repository so that even the registry operator cannot silently rewrite history.
+4. **A tamper-evident audit log** — an append-only, hash-linked record of every change to an agent's record, whose chain tip is published weekly to a separate public repository so that a later attempt to rewrite history is publicly detectable.
 5. **Factual evidence labels** — a plain-language classification (Verified / Attested / Self-declared / Registered) that describes *what independent evidence exists*, never an endorsement.
 
-Two properties are genuinely novel. First, **cross-organizational Verified**: because AIR-minted identities all share a single WHOIS root, AIR itself cannot manufacture a Verified agent — the requirement for three independent roots is self-binding, which is precisely what a single-vendor badge can never be. Second, **externally-anchored auditability**: publishing the audit chain's tip to an outside, append-only repository makes the log tamper-evident *against the operator*, back to the last weekly anchor.
+Two properties are genuinely novel. First, **cross-organizational Verified**: because AIR-minted identities all share a single WHOIS root, AIR itself cannot manufacture a Verified agent — the requirement for three independent roots is self-binding, which is precisely what a single-vendor badge can never be. Second, **externally-anchored auditability**: the audit chain's tip is published openly each week to a separate public repository, so that a later rewrite of the log is detectable against the copies observers already hold — tamper-evidence *against the operator*, back to the last weekly anchor.
 
 We are equally clear about the present limits. The infrastructure is live in production, but the trust network is in its cold-start phase; the score is deliberately capped at grade **BBB (645/1000)** today because the behavioral component is a fixed placeholder until signed action-history telemetry ships; and several inputs remain partly self-declared. These are stated not as caveats buried in an appendix but as a design principle: a neutral registry earns credibility by admitting what it does not have.
 
@@ -266,7 +266,7 @@ Topology matters because it surfaces attacks that a flat score hides. A cluster 
 
 ## 6. Tamper-Evident Auditability
 
-A trust registry that can quietly edit its own history is not trustworthy, however good its scoring is. AIR therefore records every change to an agent's record in a public, append-only, hash-linked audit log — and, crucially, anchors that log *outside* its own control so that the guarantee holds even against the registry operator.
+A trust registry that can quietly edit its own history is not trustworthy, however good its scoring is. AIR therefore records every change to an agent's record in a public, append-only, hash-linked audit log — and, crucially, publishes that log's tip to a separate public record so that tampering is detectable even against the registry operator.
 
 ### 6.1 What is logged
 
@@ -291,7 +291,7 @@ A hash chain, on its own, does not protect against the party that holds the data
 
 ### 6.4 The external anchor — the fix that makes the claim honest
 
-The fix is to publish the chain's tip somewhere AIR cannot silently rewrite. Every week (Sunday 03:00 UTC), the registry computes the global chain's `(tip_hash, entry_count)`, signs it with its Ed25519 key, and commits it to a dedicated **public, append-only external repository** — [`AgentIdentityRegistry/audit-anchors`](https://github.com/AgentIdentityRegistry/audit-anchors). That repository's own commit history is the outside witness. `GET /api/v1/audit/verify` then cross-checks the live chain's tip against the last published anchor (`last_anchor.matches`): any rewrite of history *before* the last anchor, or any truncation below the anchored entry count, becomes externally detectable by anyone.
+The fix is to publish the chain's tip **openly and repeatedly**, so that any later rewrite would contradict copies the public already holds. Every week (Sunday 03:00 UTC), the registry computes the global chain's `(tip_hash, entry_count)` and commits it to a dedicated **public** repository, [`AgentIdentityRegistry/audit-anchors`](https://github.com/AgentIdentityRegistry/audit-anchors). The foundation administers that repository, so the guarantee does not rest on AIR being technically unable to alter it; it rests on **public observability**: because each weekly anchor is published openly, independent parties can record it as it appears, and a later rewrite of the audit chain — or of the anchors themselves — then diverges from those recorded copies and becomes detectable. `GET /api/v1/audit/verify` cross-checks the live chain's tip against the last published anchor (`last_anchor.matches`): any rewrite of history *before* the last anchor, or any truncation below the anchored entry count, is detectable against that public record.
 
 The honest bound, stated the way it appears in AIR's own specification, is: **tamper-evident against accidental corruption and against the operator back to the last weekly anchor** — not real-time-guaranteed between anchors. Changes made and reverted within a single week, before the next anchor is published, are the residual gap; the anchor cadence bounds it, and shortening that cadence is a straightforward future tightening.
 
