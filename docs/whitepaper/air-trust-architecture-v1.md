@@ -261,3 +261,81 @@ Trust is relational. The useful questions are not only "how trustworthy is this 
 - **Registry-wide statistics** — `GET /graph/stats` returns node and edge counts, edges broken down by attestation type, and the most-attested agents and most-active attesters.
 
 Topology matters because it surfaces attacks that a flat score hides. A cluster of agents that vouch only for one another — a **self-attestation ring** — can each display a respectable peer sub-score, yet the ring appears as a dense, inward-facing subgraph with few edges to the rest of the network. Making that structure publicly inspectable is what raises the cost of gaming: it is no longer enough to inflate a number, because the *shape* of the trust around an agent must also look legitimate. This complements the WHOIS-root diversity rule of §4, which forces genuine Verified edges to cross organizational boundaries — precisely the signature of a healthy topology.
+
+---
+
+## 6. Tamper-Evident Auditability
+
+A trust registry that can quietly edit its own history is not trustworthy, however good its scoring is. AIR therefore records every change to an agent's record in a public, append-only, hash-linked audit log — and, crucially, anchors that log *outside* its own control so that the guarantee holds even against the registry operator.
+
+### 6.1 What is logged
+
+Every `registered`, `updated`, and `deleted` event on an agent record produces one entry. Each entry records the **fact** of the change — the subject's AIR ID, the event, which public field *names* changed, the actor type, and a worker-generated timestamp — but never the old or new field *values*. A fourth event, `redacted`, is a tombstone used for legal erasure (§6.5).
+
+### 6.2 A reproducible hash chain
+
+Each entry's hash is computed from a fully public recipe:
+
+```
+entry_hash = sha256hex(
+  [air_id, event, sorted-canonical(changed_fields), actor, created_at].join("\n")
+  + "\n" + prev_hash
+)
+```
+
+The changed-field names are sorted and JCS-canonicalized (RFC 8785) so the serialization is deterministic; the first entry uses the literal sentinel `"GENESIS"` as its `prev_hash`; and the surrogate row `id` is deliberately excluded so that ordering and linkage come only from the hash chain. Anyone — in any language — can re-derive every `entry_hash` and confirm the `prev_hash` linkage with no access to the registry's internals. A `UNIQUE(prev_hash)` constraint enforces a single linear chain and turns concurrent writes into a clean retryable conflict rather than a fork.
+
+### 6.3 The operator-trust problem — stated honestly
+
+A hash chain, on its own, does not protect against the party that holds the database. If the chain's tip lives only in AIR's own storage, whoever controls that storage could rewrite the chain end-to-end — or truncate its tail — and simply re-derive a consistent tip. A naive `verify` would still pass. AIR's first audit-log design was exactly this, and an independent review rejected it for precisely this reason: "tamper-evident against the operator" was, at that point, false.
+
+### 6.4 The external anchor — the fix that makes the claim honest
+
+The fix is to publish the chain's tip somewhere AIR cannot silently rewrite. Every week (Sunday 03:00 UTC), the registry computes the global chain's `(tip_hash, entry_count)`, signs it with its Ed25519 key, and commits it to a dedicated **public, append-only external repository** — [`AgentIdentityRegistry/audit-anchors`](https://github.com/AgentIdentityRegistry/audit-anchors). That repository's own commit history is the outside witness. `GET /api/v1/audit/verify` then cross-checks the live chain's tip against the last published anchor (`last_anchor.matches`): any rewrite of history *before* the last anchor, or any truncation below the anchored entry count, becomes externally detectable by anyone.
+
+The honest bound, stated the way it appears in AIR's own specification, is: **tamper-evident against accidental corruption and against the operator back to the last weekly anchor** — not real-time-guaranteed between anchors. Changes made and reverted within a single week, before the next anchor is published, are the residual gap; the anchor cadence bounds it, and shortening that cadence is a straightforward future tightening.
+
+### 6.5 Privacy and erasure
+
+The chain stores only pseudonymous data — an AIR ID, field names, actor type, timing, and hashes; no names, emails, or field values. Legal erasure is handled by writing a `redacted` tombstone that records *that* a subject was erased, rather than by silently deleting entries (which would break the chain). Legal review is recommended before any privacy-regulated deployment.
+
+---
+
+## 7. Threat Model
+
+A neutral registry earns trust by being specific about what it does and does not defend against. The mechanisms of §3–§6 are organized here against concrete attacks.
+
+### 7.1 What the architecture defends against
+
+| Attack | Defense |
+|--------|---------|
+| **Self-attestation** — an agent vouching for itself to appear endorsed | Lock 2 requires the attester's WHOIS root to differ from the subject's; a self-vouch is rejected. |
+| **Sybil via a shared root** — many identities under one domain manufacturing endorsements | Verified requires ≥ 3 *distinct* WHOIS roots; identities sharing a root count once. AIR-minted identities all share one root and so cannot alone confer Verified. |
+| **Fresh throwaway attesters** — spinning up new identities to vouch | Lock 3 requires attester tenure ≥ 30 days and its own trust ≥ 50. |
+| **Buying trust by volume** — flooding an agent with vouches | The square-root peer curve yields diminishing returns, and Lock 5 caps issuance at 10 per attester per 7 days. |
+| **The recursive trust pump** — inflating an attester later to retroactively lift its past vouches | Weights are frozen at issue time (Lock 4). |
+| **Dead-vouch propping** — trust sustained by deleted attesters | The dead-vouch filter drops vouches from inactive attesters and rescores dependents. |
+| **Key substitution / replay** — forging or replaying an attestation | Live `did:wba` key binding (Lock 1, fail-closed), signed-payload freshness, and a uniqueness guard on signatures. |
+| **Operator tampering with history** — the registry silently editing its own audit log | The weekly external anchor (§6.4) makes pre-anchor rewrites and truncations externally detectable. |
+
+### 7.2 What it explicitly does not defend against
+
+- **A determined multi-organization collusion.** Three *genuinely independent* organizations that choose to vouch dishonestly for one another can satisfy the three-root requirement. The architecture raises the cost of manufactured trust; it does not make coordinated real-world collusion impossible.
+- **Real runtime behavior.** The behavioral component is a fixed placeholder today. AIR does not yet measure whether an agent actually behaves well in production — only the evidence surrounding its identity and endorsements.
+- **Between-anchor integrity in real time.** Audit integrity is guaranteed only back to the last weekly anchor; a change made and reverted inside a single anchor window is the residual gap.
+- **The truth of self-declared inputs.** Provenance, transparency, and security signals asserted at registration are taken at face value and reflected in the score's evidence label as *self-declared*, not independently verified.
+
+---
+
+## 8. Current State & Limitations
+
+This section is deliberately prominent. A neutral registry that certifies others is obliged to be candid about itself.
+
+- **The infrastructure is live.** The registry API, the five-component score, attestations and AIR Verified, the trust graph, the externally-anchored audit log, the Python and TypeScript SDKs, and the MCP server are all deployed in production.
+- **The network is in cold-start.** The mechanisms exist, but a trust network needs participants. Because Verified requires endorsements from three independently-rooted attesters, building that first cohort of independent attesters is the central bootstrapping challenge at this stage — and the honest current state is early.
+- **The score is capped at grade BBB (645/1000).** No live agent can exceed 645 today; grades A, AA, and AAA are reserved (see §3.3).
+- **Behavioral scoring is a flat 500 placeholder.** Real runtime telemetry is future work, so this quarter of the score does not yet differentiate agents.
+- **Several inputs are self-declared.** Provenance, transparency, and security signals — including security certifications — are asserted at registration and not yet independently audited.
+- **Audit integrity is anchored weekly, not in real time.** The tamper-evidence guarantee holds back to the last weekly anchor, as stated in §6.4.
+
+None of these are hidden in an appendix, because admitting them *is* the neutrality argument: a registry that overstated its own maturity could not credibly ask anyone to trust its assessment of others.
