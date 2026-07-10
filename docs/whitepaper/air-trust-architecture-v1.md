@@ -94,3 +94,110 @@ The design goal is that trust in AIR reduces to trust in mathematics and in publ
 ### 2.4 Honesty — admit what we don't have
 
 A neutral registry earns standing by being candid about its own limits. AIR publishes its actual status, not an aspirational one. The score is capped at grade BBB today because behavioral telemetry is not yet measured; the network is in cold-start; some inputs are self-declared; and the audit log is tamper-evident only back to the last weekly anchor, not in real time between anchors. These limitations are documented in §7 (Threat Model) and §8 (Current State & Limitations) as first-class content, because a system that hides its weaknesses cannot credibly certify anyone else's strengths.
+
+---
+
+## 3. The Trust Score
+
+The trust score is a single integer on a 0–1000 scale, but its value comes from being fully decomposed and published rather than from the number itself. It is a weighted sum of five components, each independently scored on the same 0–1000 scale. This section documents exactly what the deployed engine (`api/src/trust.mjs`) computes today — not an aspirational rubric.
+
+### 3.1 The five components and their weights
+
+```
+Trust Score = round( 0.25·Provenance
+                   + 0.25·Behavioral
+                   + 0.20·Transparency
+                   + 0.15·Security
+                   + 0.15·PeerAttestations )
+```
+
+The five weights sum to 1.0, so the composite stays on the 0–1000 scale. Each component is computed as follows:
+
+| Component | Weight | How it is computed today | Effective range |
+|-----------|--------|--------------------------|-----------------|
+| **Provenance** | 25% | base 300; +100 each for a creator DID, a creator name, and creator type = `organization` | 300–600 |
+| **Behavioral** | 25% | flat **500** placeholder — signed action history is future work | 500 |
+| **Transparency** | 20% | base 300; +150 open-source, +100 code repository, +100 documentation URL | 300–650 |
+| **Security** | 15% | base 300; +100 per declared certification (maximum +300) | 300–600 |
+| **Peer Attestations** | 15% | `min(300 + round(18·√W), 1000)`, where `W` is the frozen-weight sum of active attestations | 300–1000 |
+
+There is a deliberate asymmetry here. Every component an agent can raise by *self-declaration* — provenance, transparency, security, and the flat behavioral placeholder — is capped between 500 and 650. The **only** component that can reach the full 1000 is **peer attestations**, which requires endorsements from independent parties an agent cannot fabricate on its own. Cheap, self-asserted trust caps out low by design; only earned trust moves the score meaningfully.
+
+### 3.2 Grades
+
+The composite maps to one of seven letter grades. Grades are a coarse, backward-compatible summary; the numeric score and its components are the transparent detail.
+
+| Score | Grade |
+|-------|-------|
+| ≥ 950 | AAA |
+| ≥ 850 | AA |
+| ≥ 700 | A |
+| ≥ 600 | BBB |
+| ≥ 500 | BB |
+| ≥ 400 | B |
+| < 400 | C |
+
+### 3.3 The 645 ceiling — and why it exists
+
+Today, the maximum score any agent can reach is **645 — grade BBB**. This is not an arbitrary limit; it is the arithmetic consequence of the honest component ranges above, using the most favourable possible inputs:
+
+```
+maximum = round( 0.25·600  (Provenance, fully identified organization)
+               + 0.25·500  (Behavioral, the flat placeholder)
+               + 0.20·650  (Transparency, fully open)
+               + 0.15·600  (Security, three certifications)
+               + 0.15·1000 (Peer Attestations, curve maxed) )
+        = round( 150 + 125 + 130 + 90 + 150 )
+        = 645
+```
+
+Grades **A, AA, and AAA are reserved** — no live agent can reach them yet. The ceiling exists for two honest reasons: the **behavioral** component is a fixed 500 placeholder because AIR does not yet measure real runtime behavior, and the provenance / transparency / security inputs are partly **self-declared** and capped accordingly. AIR would rather understate trust than overstate it; the top grades remain locked until higher-confidence inputs (behavioral telemetry, independently-verified certifications) ship. Any agent claiming a grade above BBB today is, by construction, not scored by this engine.
+
+### 3.4 Diminishing returns on peer attestations
+
+The peer-attestation sub-score uses a square-root curve rather than a linear one:
+
+```
+PeerAttestations = min( 300 + round(18 · √W), 1000 )
+```
+
+where `W` is the sum, over active attestations from active attesters, of each vouch's **frozen weight** — `attester_trust_at_issue × tenure_multiplier_at_issue`, captured at the moment the attestation is issued. Three properties matter:
+
+- **Diminishing returns.** Because the curve is a square root, each additional vouch adds less than the one before it. Trust cannot be bought linearly by accumulating volume.
+- **Frozen weights.** Capturing the attester's trust and tenure *at issue time* breaks the recursive "trust pump": later raising one agent's score cannot retroactively inflate every agent it has already vouched for.
+- **Dead-vouch filter.** Only attestations from *active* attesters count. A vouch from a deleted or deactivated identity stops contributing, so trust cannot be propped up by vanished parties.
+
+With no attestations, `W = 0` and the sub-score is its baseline **300**.
+
+### 3.5 Evidence labels — facts, not verdicts
+
+Alongside the numeric score, every agent carries a single **evidence label** — the canonical, human-facing classification. It states *what independent evidence exists*, never whether the agent is "good." There are four labels, derived mechanically:
+
+| Label | What it means |
+|-------|---------------|
+| **Verified** | The agent has AIR Verified status: `verification_score ≥ 300` across **≥ 3 distinct WHOIS roots** (see §4). |
+| **Attested** | Not Verified, but at least one active independent attestation exists. |
+| **Self-declared** | No attestations; a self-reported provenance, transparency, or security signal has raised a component above its 300 anonymous baseline. |
+| **Registered** | The anonymous baseline — registered, but no enrichment and no attestations. |
+
+The labels are versioned (the current definition version is **2026-06-09**), and every label the API returns carries the explicit disclaimer that it is *"derived mechanically from published criteria; not an endorsement or certification by AIR."* This is the neutrality principle made concrete: AIR reports evidence and lets the reader judge.
+
+### 3.6 A worked example
+
+Consider *AnalyticsBot-v2*, an agent whose creator provided a DID but no organization identity, marked its code open-source but gave no repository or docs URL, declared one security certification, and has no attestations yet:
+
+| Component | Score | Basis |
+|-----------|-------|-------|
+| Provenance | 400 | base 300 + creator DID (+100) |
+| Behavioral | 500 | flat placeholder |
+| Transparency | 550 | base 300 + open-source (+150) |
+| Security | 400 | base 300 + one certification (+100) |
+| Peer Attestations | 300 | baseline (`W = 0`) |
+
+```
+Score = round( 0.25·400 + 0.25·500 + 0.20·550 + 0.15·400 + 0.15·300 )
+      = round( 100 + 125 + 110 + 60 + 45 )
+      = 440
+```
+
+This yields a trust score of **440**, grade **B**, and — because a self-declared signal (open-source) lifted transparency above baseline while no attestation exists — the evidence label **Self-declared**.
