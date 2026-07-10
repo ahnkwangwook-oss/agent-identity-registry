@@ -21,7 +21,7 @@ cd "$ROOT"
 
 # Files & directories that ARE the public website.
 PAGES=(index.html 404.html sitemap.xml robots.txt BingSiteAuth.xml _redirects)
-DIRS=(assets about admin blog contact developers governance lookup note register specs)
+DIRS=(assets about admin blog contact developers governance lookup note register specs whitepaper)
 
 echo "── Staging dist/ ─────────────────────────────"
 rm -rf "$DIST"
