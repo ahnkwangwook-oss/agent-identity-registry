@@ -7,8 +7,8 @@
 import OPENAPI_YAML from "../openapi.yaml";
 import { base58Decode, base64urlToBytes, ed25519ToMultibase, documentContainsKey } from "./did-keys.mjs";
 import { calculateInitialTrustScore, computeVerifiedStatus, recomputeTrustScore, recomputeDependentsOf, computeEvidenceLabel, buildEvidence, EVIDENCE_LABEL_DISCLAIMER } from "./trust.mjs";
-import { sha256Hex, jcsCanonicalize } from "./crypto-utils.mjs";
-import { recordAuditEvent, verifyAuditChain, buildAnchor, publishAnchor, computeChainTip } from "./audit.mjs";
+import { sha256Hex, jcsCanonicalize, ed25519SignerFromPkcs8Base64 } from "./crypto-utils.mjs";
+import { recordAuditEvent, verifyAuditChain, buildAnchor, publishAnchor, computeChainTip, signAnchor, anchorKeyId, verifyAnchorSignature } from "./audit.mjs";
 import { validateUsername, isHandleInCooldown, isUsernameConflict, lookupHandle } from "./validation.mjs";
 
 // Detects a D1 UNIQUE/constraint violation on the audit chain's prev_hash —
@@ -125,8 +125,7 @@ export default {
         response = await adminAuth(request, env);
         if (!response) {
           try {
-            const anchor = await buildAnchor(env.DB, new Date().toISOString());
-            const result = await publishAnchor(anchor, { putFile: githubPutFile(env) });
+            const { anchor, result } = await buildAndPublishAnchor(env, new Date().toISOString());
             response = json({ published: anchor, result });
           } catch (e) {
             response = json({ error: (e && e.message) || String(e) }, 500);
@@ -182,8 +181,7 @@ export default {
     ctx.waitUntil(
       (async () => {
         try {
-          const anchor = await buildAnchor(env.DB, new Date().toISOString());
-          await publishAnchor(anchor, { putFile: githubPutFile(env) });
+          await buildAndPublishAnchor(env, new Date().toISOString());
         } catch (e) {
           console.error("[audit-anchor-cron] FAILED:", (e && e.stack) || e);
         }
@@ -247,6 +245,16 @@ function json(data, status = 200, extraHeaders = {}) {
 // rate limit). GitHub requires a User-Agent header on every request.
 const ANCHOR_REPO = "AgentIdentityRegistry/audit-anchors";
 
+// Authoritative pinned public key for anchor SIGNATURES (raw 32-byte Ed25519,
+// base64url). This source constant (+ the OpenAPI copy) is the trust anchor
+// verifiers use — NOT the KEY.json convenience copy in the writable anchors repo.
+// MUST match the private key in the AUDIT_ANCHOR_SIGNING_KEY secret.
+const ANCHOR_PUBLIC_KEY_B64URL = "SET_AT_PROVISIONING";
+// Signing went live on this date; a third-party verifier MUST treat any UNSIGNED
+// anchor dated on/after it as invalid (AIR's server never publishes one — see
+// buildAndPublishAnchor's hard-require — but a repo-write attacker could).
+const ANCHOR_SIGNING_EFFECTIVE = "2026-07-11";
+
 // Returns a putFile({ path, content, message }) sink that commits to the public
 // anchors repo. GETs first to recover any existing file's sha so re-publishing
 // the same dated path updates (instead of 422-ing). Throws on a failed PUT so
@@ -275,6 +283,21 @@ function githubPutFile(env) {
     }
     return { ok: res.ok, status: res.status };
   };
+}
+
+// Build → SIGN → publish the weekly anchor. HARD-REQUIRE: if the signing key is
+// unset, throw and publish NOTHING — there is deliberately no unsigned-anchor
+// path (removes the silent-downgrade surface). Callers decide how to surface it:
+// the cron logs + skips; the manual admin trigger returns the error.
+async function buildAndPublishAnchor(env, now) {
+  if (!env.AUDIT_ANCHOR_SIGNING_KEY) {
+    throw new Error("AUDIT_ANCHOR_SIGNING_KEY unset — refusing to publish an unsigned anchor");
+  }
+  const sign = await ed25519SignerFromPkcs8Base64(env.AUDIT_ANCHOR_SIGNING_KEY);
+  const keyId = await anchorKeyId(base64urlToBytes(ANCHOR_PUBLIC_KEY_B64URL));
+  const anchor = await signAnchor(await buildAnchor(env.DB, now), { sign, keyId });
+  const result = await publishAnchor(anchor, { putFile: githubPutFile(env) });
+  return { anchor, result };
 }
 
 // Best-effort fetch of the most recent published anchor (or null). Never throws:
@@ -1547,13 +1570,20 @@ async function getAuditVerify(url, env) {
   // so the integrity verdict never depends on a third party being available.
   const tip = await computeChainTip(env.DB);
   const anchor = await fetchLatestAnchor(env); // best-effort, may be null
+  let pinnedPub = null;
+  try { pinnedPub = base64urlToBytes(ANCHOR_PUBLIC_KEY_B64URL); } catch { /* key not provisioned yet */ }
   const last_anchor = anchor ? {
     anchored_at: anchor.anchored_at,
     tip_hash: anchor.tip_hash,
     entry_count: anchor.entry_count,
     matches: tip.tip_hash === anchor.tip_hash && tip.count >= anchor.entry_count,
+    // Authenticity of the anchor artifact against the PINNED key (null if we
+    // can't yet — no key provisioned). A verifier must also reject an UNSIGNED
+    // anchor dated >= ANCHOR_SIGNING_EFFECTIVE and enforce monotonic entry_count
+    // across the series (rollback is caught by git history, not the signature).
+    signature_valid: pinnedPub ? await verifyAnchorSignature(anchor, pinnedPub) : null,
   } : null;
-  return json({ ...result, live_tip_hash: tip.tip_hash, live_count: tip.count, last_anchor });
+  return json({ ...result, live_tip_hash: tip.tip_hash, live_count: tip.count, signing_effective: ANCHOR_SIGNING_EFFECTIVE, last_anchor });
 }
 
 // ============================================================

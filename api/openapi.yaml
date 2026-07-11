@@ -2083,7 +2083,14 @@ components:
 
     AuditAnchor:
       type: object
-      description: External anchor published weekly to the public audit-anchors repo.
+      description: >
+        External anchor published weekly to the public audit-anchors repo. Anchors
+        dated on/after the signing-effective date (see AuditVerifyResult) carry an
+        Ed25519 `signature` over the JCS canonicalization of
+        {anchored_at, entry_count, tip_hash}, verifiable against AIR's pinned anchor
+        public key. Signing adds AUTHENTICITY (proof AIR issued the anchor), not
+        tamper-proofing: AIR holds the key, so operator-rewrite + anchor-rollback are
+        caught by the public append-only git history, not by the signature.
       required: [anchored_at, tip_hash, entry_count]
       properties:
         anchored_at:
@@ -2095,10 +2102,43 @@ components:
         entry_count:
           type: integer
           description: Total number of entries in the chain at anchor time.
+        algorithm:
+          type: string
+          description: >
+            Signature algorithm ("Ed25519"). Absent on pre-signing historical
+            anchors. A verifier must use the algorithm bound to the pinned key,
+            never let this field select it.
+        key_id:
+          type: string
+          description: >
+            First 16 lowercase-hex of sha256(raw 32-byte public key) — a non-security
+            hint identifying the signing key. A matching key_id is never sufficient;
+            the signature must verify under the pinned key.
+        signature:
+          type: string
+          description: >
+            Unpadded base64url Ed25519 signature over
+            jcs({anchored_at, entry_count, tip_hash}). Absent on pre-signing anchors.
 
     AuditVerifyResult:
       type: object
-      description: Bounded integrity check of the global audit chain.
+      description: >
+        Bounded integrity check of the global audit chain, cross-checked against the
+        latest external anchor.
+
+
+        **Anchor verification (for third parties).** AIR's pinned anchor public key
+        (raw 32-byte Ed25519, base64url) is: `SET_AT_PROVISIONING`. This value —
+        published here and as a source constant — is the authoritative pin; the
+        `KEY.json` in the audit-anchors repo is a non-authoritative convenience copy
+        only. To verify an anchor: (1) confirm `algorithm` == "Ed25519"; (2) verify
+        `signature` (base64url) over `jcs({anchored_at, entry_count, tip_hash})`
+        against the pinned key — never trust `key_id` in its place; (3) reject any
+        anchor dated >= `signing_effective` that lacks a valid signature; (4) across
+        the anchor series, enforce **monotonic non-decreasing `entry_count`** and that
+        each file's name matches its `anchored_at` date. Signing proves authenticity
+        only — operator-rewrite and anchor-rollback are caught by the public,
+        append-only git commit history, which remains the tamper-evidence witness.
       required: [valid, entries_checked]
       properties:
         valid:
@@ -2118,6 +2158,11 @@ components:
         live_count:
           type: integer
           description: Total number of entries currently in the live chain.
+        signing_effective:
+          type: string
+          description: >
+            Date (YYYY-MM-DD) anchor signing went live. Any anchor dated on/after
+            this without a valid signature must be treated as invalid.
         last_anchor:
           description: >
             Cross-check against the latest external anchor; null if none published
@@ -2136,3 +2181,10 @@ components:
               description: >
                 True if live_tip_hash equals the anchor tip_hash AND live_count
                 is >= the anchor entry_count.
+            signature_valid:
+              type: boolean
+              nullable: true
+              description: >
+                True if the anchor's Ed25519 signature verifies against AIR's pinned
+                public key; false if it fails or is unsigned; null if the registry
+                has no pinned key configured yet.
