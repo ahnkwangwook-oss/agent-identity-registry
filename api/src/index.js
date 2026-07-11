@@ -255,6 +255,21 @@ const ANCHOR_PUBLIC_KEY_B64URL = "SET_AT_PROVISIONING";
 // buildAndPublishAnchor's hard-require — but a repo-write attacker could).
 const ANCHOR_SIGNING_EFFECTIVE = "2026-07-11";
 
+// Decode the pinned anchor public key to raw 32 bytes, or null if not yet
+// provisioned / malformed. NOTE: the SET_AT_PROVISIONING placeholder is
+// coincidentally decodable base64url (→ 14 garbage bytes) and does NOT throw,
+// so we distinguish "not configured" by a STRICT 32-byte length check (a real
+// Ed25519 public key is exactly 32 bytes), never by relying on a decode error.
+function pinnedAnchorPublicKey() {
+  if (ANCHOR_PUBLIC_KEY_B64URL === "SET_AT_PROVISIONING") return null;
+  try {
+    const raw = base64urlToBytes(ANCHOR_PUBLIC_KEY_B64URL);
+    return raw.length === 32 ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
 // Returns a putFile({ path, content, message }) sink that commits to the public
 // anchors repo. GETs first to recover any existing file's sha so re-publishing
 // the same dated path updates (instead of 422-ing). Throws on a failed PUT so
@@ -290,11 +305,15 @@ function githubPutFile(env) {
 // path (removes the silent-downgrade surface). Callers decide how to surface it:
 // the cron logs + skips; the manual admin trigger returns the error.
 async function buildAndPublishAnchor(env, now) {
+  const pinnedPub = pinnedAnchorPublicKey();
+  if (!pinnedPub) {
+    throw new Error("ANCHOR_PUBLIC_KEY_B64URL not provisioned — refusing to publish an anchor no one could verify");
+  }
   if (!env.AUDIT_ANCHOR_SIGNING_KEY) {
     throw new Error("AUDIT_ANCHOR_SIGNING_KEY unset — refusing to publish an unsigned anchor");
   }
   const sign = await ed25519SignerFromPkcs8Base64(env.AUDIT_ANCHOR_SIGNING_KEY);
-  const keyId = await anchorKeyId(base64urlToBytes(ANCHOR_PUBLIC_KEY_B64URL));
+  const keyId = await anchorKeyId(pinnedPub);
   const anchor = await signAnchor(await buildAnchor(env.DB, now), { sign, keyId });
   const result = await publishAnchor(anchor, { putFile: githubPutFile(env) });
   return { anchor, result };
@@ -1570,8 +1589,7 @@ async function getAuditVerify(url, env) {
   // so the integrity verdict never depends on a third party being available.
   const tip = await computeChainTip(env.DB);
   const anchor = await fetchLatestAnchor(env); // best-effort, may be null
-  let pinnedPub = null;
-  try { pinnedPub = base64urlToBytes(ANCHOR_PUBLIC_KEY_B64URL); } catch { /* key not provisioned yet */ }
+  const pinnedPub = pinnedAnchorPublicKey(); // null until provisioned → signature_valid null
   const last_anchor = anchor ? {
     anchored_at: anchor.anchored_at,
     tip_hash: anchor.tip_hash,

@@ -185,6 +185,14 @@ test("verifyAnchorSignature: malformed signature returns false, never throws", a
   assert.equal(await verifyAnchorSignature({ algorithm: "Ed25519", signature: "AAAA", anchored_at: "t", tip_hash: "h", entry_count: 1 }, publicKeyRaw), false);
 });
 
+test("verifyAnchorSignature: a wrong-length public key returns false, never throws", async () => {
+  const { sign, keyId } = await makeTestSigner();
+  const signed = await signAnchor({ anchored_at: "t", tip_hash: "h", entry_count: 1 }, { sign, keyId });
+  // 14 bytes is exactly what base64urlToBytes("SET_AT_PROVISIONING") yields — a
+  // non-32-byte key must never crash importKey; verify must fail closed to false.
+  assert.equal(await verifyAnchorSignature(signed, new Uint8Array(14)), false);
+});
+
 // Known-answer vector: a FIXED PKCS#8 key + FIXED anchor yields a FIXED Ed25519
 // signature. Ed25519 is deterministic, so any conforming re-implementation
 // (Rust/Python) that JCS-canonicalizes {anchored_at, entry_count, tip_hash} and
