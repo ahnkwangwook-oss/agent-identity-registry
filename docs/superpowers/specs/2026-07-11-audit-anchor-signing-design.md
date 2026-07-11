@@ -27,9 +27,9 @@ Sign each weekly external audit anchor with a dedicated registry Ed25519 key and
 
 A **dedicated** anchor-signing keypair (separate from the Foundation agent key / any attester key — separation of concerns; this key signs only anchors).
 
-- **Peter generates the keypair and sets the private half as a Worker secret** — the private key never passes through chat or the assistant. Exact recipe provided at approval time; shape:
-  - `wrangler secret put AUDIT_ANCHOR_SIGNING_KEY` (value: base64 of the PKCS#8 Ed25519 private key, or a 32-byte seed — final format pinned in the plan to match `crypto.subtle.importKey`).
-- **Public key** (safe to handle): committed to source as a documented constant, published in OpenAPI, and written to the `audit-anchors` repo as `KEY.json` (algorithm + base64url public key + key_id). This is the out-of-band pin third parties trust.
+- **Peter generates the keypair and sets the private half as a Worker secret** — the private key never passes through chat or the assistant.
+  - `wrangler secret put AUDIT_ANCHOR_SIGNING_KEY` — value: **standard base64 of the PKCS#8 DER** Ed25519 private key. (WebCrypto Ed25519 `importKey` accepts a private key only as `"pkcs8"` or `"jwk"`, **never `"raw"`** — a raw seed will not import. Confirmed against the review, MAJOR 1.)
+- **Public key** (safe to handle): the **authoritative pin** is a documented constant in the `air-site` source (`ANCHOR_PUBLIC_KEY_B64URL`) + the OpenAPI copy (both outside a repo-write attacker's reach; they must match), and ideally echoed in the widely-distributed whitepaper PDF. A `KEY.json` in the `audit-anchors` repo is a **non-authoritative convenience copy only** — verifiers MUST fetch the key from the authoritative source, not from the anchors repo (MAJOR 3).
 
 ## 2. What is signed
 
@@ -106,8 +106,16 @@ signature    = Ed25519_sign(AUDIT_ANCHOR_SIGNING_KEY, signed_bytes)
 In: sign the anchor, publish + pin the public key, verify helper, OpenAPI, tests, one honest whitepaper upgrade.
 Out: re-signing historical anchors; key rotation tooling (documented as future — note the `key_id` field makes rotation additive later); per-entry signing (a separate deferred item); multibase re-encoding of existing attestation signatures.
 
-## Open decisions for Peter
+## Decisions (resolved 2026-07-11)
 
-1. **Dedicated new key** (recommended) vs reuse an existing foundation key. Recommendation: dedicated.
-2. Signature encoding **base64url** (recommended, ergonomic) vs multibase (matches attestation convention).
-3. Graceful-degrade-if-unset (recommended, no cron breakage) vs hard-require-signing once deployed.
+1. **Dedicated new keypair** for anchors — approved.
+2. **base64url** signatures with an explicit `algorithm` field — approved.
+3. Degrade behavior — resolved to the **cutover hybrid** below (supersedes the original "graceful-degrade" choice per MAJOR 2): unsigned publishing is allowed only *before* the cutover date; after it, signing is required and the Worker fails closed (skips publishing) if the key is unset, and verifiers reject any post-cutover unsigned anchor.
+
+## Security review resolutions (independent review → REWORK → addressed)
+
+- **MAJOR 1 — key format.** Secret is **PKCS#8 DER base64**, imported via `crypto.subtle.importKey("pkcs8", …, ["sign"])`. The raw-seed option is dropped (won't import). A real PKCS#8→import→sign→verify test + a fixed KAT are in `api/test/audit.test.mjs`.
+- **MAJOR 2 — downgrade hole.** A published **cutover date** bounds the pre-signing window. After it: Worker fails closed (skips, producing a *visible* cadence gap rather than a masked unsigned anchor); verifiers treat a missing signature on a post-cutover anchor as invalid. Graceful-degrade applies only in the pre-provisioning window.
+- **MAJOR 3 — key-pin location.** Authoritative pin = the `air-site` source constant + OpenAPI (+ whitepaper), NOT the attacker-writable `audit-anchors` repo. `KEY.json` there is a convenience copy only.
+- **MAJOR 4 — replay/rollback.** Signing binds the 3 fields but not the anchor *series*: a repo-write attacker could replay an old validly-signed anchor at a new path. The verifier recipe therefore also (a) binds filename ↔ `anchored_at`, (b) enforces **monotonic non-decreasing `entry_count`** across anchors, and (c) keeps the git commit history as the append-only rollback witness. The whitepaper must state **signing gives authenticity, not rollback-resistance** — "offline-verifiable" ≠ "GitHub history unnecessary."
+- **Minors:** verifier trusts the pinned key (never `key_id`/`algorithm`); `key_id` = first 16 lowercase-hex of `sha256(raw 32-byte pubkey)` (a non-security hint); bytes→base64url encoder added to `crypto-utils.mjs`; Node ≥18.4 required for WebCrypto Ed25519 (CI runs v25).
