@@ -1,5 +1,6 @@
 // AIR Registry — agent-record audit chain (registry #5). Isolated + testable.
-import { sha256Hex, jcsCanonicalize } from "./crypto-utils.mjs";
+import { sha256Hex, sha256HexBytes, jcsCanonicalize, bytesToBase64url } from "./crypto-utils.mjs";
+import { base64urlToBytes } from "./did-keys.mjs";
 
 export const GENESIS = "GENESIS"; // sentinel prev_hash for the first entry (non-NULL so UNIQUE covers it)
 
@@ -64,6 +65,52 @@ export async function publishAnchor(anchor, { putFile } = {}) {
     content: JSON.stringify(anchor),
     message: `anchor ${date}: tip ${anchor.tip_hash.slice(0, 12)} (${anchor.entry_count} entries)`,
   });
+}
+
+// ---- Anchor signing (Ed25519) --------------------------------------------
+// Adds AUTHENTICITY + non-repudiation to each anchor: a third party can verify,
+// from the anchor JSON + AIR's out-of-band-pinned public key alone, that AIR
+// issued it. This does NOT defend against AIR rewriting its own chain (AIR holds
+// the key and can re-sign) nor against anchor-set replay/rollback — the public,
+// append-only git history remains the operator-tamper + rollback witness.
+export const ANCHOR_SIG_ALG = "Ed25519";
+
+// The exact bytes signed for an anchor: JCS of the three semantic fields ONLY
+// (never the signature/metadata), so a verifier reproduces them from the data alone.
+export function anchorSigningBytes(anchor) {
+  return new TextEncoder().encode(jcsCanonicalize({
+    anchored_at: anchor.anchored_at,
+    entry_count: anchor.entry_count,
+    tip_hash: anchor.tip_hash,
+  }));
+}
+
+// Stable NON-secret hint identifying which signing key produced an anchor:
+// first 16 lowercase-hex chars (64 bits) of sha256(raw 32-byte Ed25519 public key).
+// A hint only — verification trusts the PINNED key, never a matching key_id.
+export async function anchorKeyId(publicKeyRaw) {
+  return (await sha256HexBytes(publicKeyRaw)).slice(0, 16);
+}
+
+// Sign an anchor. `sign` is injected — async (bytes) => raw signature bytes — so
+// audit.mjs holds no key and stays unit-testable. Returns the anchor plus
+// { algorithm, key_id, signature }, signature as unpadded base64url.
+export async function signAnchor(anchor, { sign, keyId }) {
+  const signature = bytesToBase64url(await sign(anchorSigningBytes(anchor)));
+  return { ...anchor, algorithm: ANCHOR_SIG_ALG, key_id: keyId, signature };
+}
+
+// Verify a signed anchor against a PINNED raw 32-byte Ed25519 public key. The
+// pinned key (NOT the anchor's self-asserted key_id/algorithm) is the trust
+// source; anything unsigned, non-Ed25519, or malformed returns false (never throws).
+export async function verifyAnchorSignature(anchor, publicKeyRaw) {
+  if (!anchor || anchor.algorithm !== ANCHOR_SIG_ALG || typeof anchor.signature !== "string") return false;
+  try {
+    const key = await crypto.subtle.importKey("raw", publicKeyRaw, { name: "Ed25519" }, false, ["verify"]);
+    return await crypto.subtle.verify("Ed25519", key, base64urlToBytes(anchor.signature), anchorSigningBytes(anchor));
+  } catch {
+    return false;
+  }
 }
 
 // Bounded walk: recompute each hash + check linkage. Returns the integrity verdict.
